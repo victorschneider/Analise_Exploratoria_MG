@@ -1,0 +1,25 @@
+# R
+.RData
+.Rhistory
+.Ruserdata
+
+# RStudio
+.Rproj.user/
+
+# Quarto
+.quarto/
+
+# Relatório renderizado
+relatorio.html
+relatorio_files/
+
+# LaTeX / temporários
+*.tex
+*.aux
+*.log
+*.out
+*.toc
+
+# Sistema
+.DS_Store
+Thumbs.db
