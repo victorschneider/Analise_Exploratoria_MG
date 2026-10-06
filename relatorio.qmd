@@ -1,0 +1,6492 @@
+---
+title: "Trabalho Final: Análise Exploratória dos Municípios de Minas Gerais"
+
+author:
+  - name: Ana Laura Rangel Torres
+    affiliation: Universidade Federal de Minas Gerais
+    email: anarangellufmg@gmail.com
+
+  - name: Rafaela Emily Miura
+    affiliation: Universidade Federal de Minas Gerais
+    email: rafaemiura@gmail.com
+
+  - name: Victor Schneider Vale
+    affiliation: Universidade Federal de Minas Gerais
+    email: victorschneider@ufmg.br
+
+date: today
+
+execute:
+  warning: false
+  message: false
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    number-sections: true
+    code-fold: false
+    code-summary: "Mostrar código"
+    embed-resources: false
+    fig-width: 7
+    fig-height: 4.5
+    fig-dpi: 96
+    smooth-scroll: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+#| include: false
+
+#Carregando Bibliotecas
+library(readxl) # Auxilia na leitura do .xlsm
+library(dplyr) 
+library(ggplot2) # Construção de gráficos
+library(corrplot) # Construção do heatmap de correlação
+library(ggcorrplot) # Construção do heatmap de correlação
+library(forcats)
+library(plotly) # Construção de gráficos interativos
+library(DT)
+library(scales) 
+library(geobr) # Download e análise dos mapas de minas gerais
+library(sf)
+library(stringi)
+
+
+#Funções auxiliares
+formatar_moeda <- function(x) {
+  paste0(
+    "R$ ",
+    format(
+      round(x, 2),
+      big.mark = ".",
+      decimal.mark = ",",
+      nsmall = 2
+    )
+  )
+}
+
+formatar_percentual <- function(x) {
+  paste0(
+    format(
+      round(x, 2),
+      big.mark = ".",
+      decimal.mark = ",",
+      nsmall = 2
+    ),
+    "%"
+  )
+}
+
+formatar_abreviado <- function(x) {
+  dplyr::case_when(
+    x == 0 ~ "0",
+    x >= 1e9 ~ paste0(format(round(x / 1e9, 1), decimal.mark = ","), " bi"),
+    x >= 1e6 ~ paste0(format(round(x / 1e6, 1), decimal.mark = ","), " mi"),
+    TRUE ~ format(x, big.mark = ".", decimal.mark = ",", scientific = FALSE)
+  )
+}
+
+formatar_moeda_abreviada <- function(x) {
+
+  ifelse(
+    x >= 1e9,
+    paste0(
+      "R$ ",
+      format(round(x / 1e9, 1),
+             decimal.mark = ","),
+      " bi"
+    ),
+    paste0(
+      "R$ ",
+      format(round(x / 1e6, 1),
+             decimal.mark = ","),
+      " mi"
+    )
+  )
+
+}
+
+```
+
+# Resumo
+
+Este trabalho apresenta uma análise exploratória de dados dos municípios
+do estado de Minas Gerais utilizando informações disponibilizadas pelo
+Instituto Brasileiro de Geografia e Estatística (IBGE). Inicialmente,
+realizou-se a leitura, inspeção e tratamento dos dados, com
+identificação de valores ausentes e inconsistências. Em seguida, foram
+produzidas estatísticas descritivas e visualizações gráficas para
+caracterizar a distribuição das variáveis e identificar possíveis
+valores extremos. Por fim, foram investigadas associações entre
+diferentes indicadores por meio de gráficos de dispersão e medidas de
+correlação, buscando compreender padrões e relações presentes nos
+municípios mineiros. Os resultados obtidos contribuem para uma melhor
+compreensão das características socioeconômicas do estado e demonstram a
+aplicação de técnicas fundamentais de análise exploratória de dados
+utilizando a linguagem R. Para esse estudo, foram analisados indicadores
+demográficos, econômicos, educacionais e sociais de cada município
+
+# Introdução
+
+O crescente volume de dados disponibilizados por órgãos públicos tem
+ampliado as possibilidades de análise e compreensão de fenômenos
+sociais, econômicos e demográficos. Nesse contexto, a Estatística e a
+Ciência de Dados desempenham um papel fundamental ao fornecer métodos e
+ferramentas capazes de transformar dados brutos em informações
+relevantes para a tomada de decisões e para a compreensão da realidade
+observada.
+
+Entre as principais etapas de um processo de análise de dados está a
+Análise Exploratória de Dados, cuja finalidade é compreender a estrutura
+da base, identificar padrões, detectar inconsistências, investigar
+distribuições e avaliar possíveis relações entre variáveis. Por meio de
+técnicas estatísticas e recursos de visualização gráfica, torna-se
+possível extrair conhecimento e formular hipóteses sobre os dados
+estudados.
+
+Neste trabalho são analisados dados dos municípios do estado de Minas
+Gerais disponibilizados pelo Instituto Brasileiro de Geografia e
+Estatística (IBGE). A base contempla indicadores de diferentes
+dimensões, incluindo aspectos populacionais, territoriais, educacionais,
+econômicos e sociais, como população, densidade demográfica,
+escolarização, Índice de Desenvolvimento Humano Municipal (IDHM),
+mortalidade infantil, receitas e despesas públicas e Produto Interno
+Bruto (PIB) per capita.
+
+A partir desses dados, busca-se caracterizar os municípios mineiros,
+compreender a distribuição dos indicadores disponíveis e investigar
+possíveis associações entre variáveis que contribuam para uma melhor
+compreensão das diferenças e semelhanças existentes entre os municípios
+do estado. Para isso, são empregadas técnicas de tratamento de dados,
+estatística descritiva, visualização gráfica e análise de correlação,
+utilizando a linguagem R como principal ferramenta computacional.
+
+Realizar uma análise exploratória dos dados dos municípios de Minas
+Gerais disponibilizados pelo IBGE, utilizando técnicas estatísticas e
+ferramentas de visualização para identificar padrões, características e
+associações entre indicadores socioeconômicos, demográficos e
+educacionais.
+
+# Objetivos
+
+## Objetivo Geral
+
+Realizar uma análise exploratória dos dados dos municípios de Minas
+Gerais disponibilizados pelo IBGE, utilizando técnicas estatísticas e
+ferramentas de visualização para identificar padrões, características e
+associações entre indicadores socioeconômicos, demográficos e
+educacionais.
+
+## Objetivos Específicos
+
+- Realizar a leitura e o tratamento da base de dados disponibilizada.
+- Identificar e tratar valores ausentes ou inconsistentes.
+- Identificar e calcular as medidas descritivas mais coerentes para cada
+  variável presentes na base.
+- Construir histogramas e boxplots para avaliar a distribuição dos dados
+  e identificar possíveis valores extremos (outliers).
+- Comparar o PIB per capita dos municípios com as maiores áreas
+  territoriais do estado.
+- Investigar possíveis relações entre diferentes indicadores municipais
+  por meio de visualizações gráficas.
+- Calcular coeficientes de correlação para avaliar a intensidade e o
+  sentido das associações identificadas. Interpretar os resultados
+  obtidos dentro do contexto socioeconômico dos municípios mineiros.
+
+# Metodologia
+
+A análise foi realizada na linguagem R utilizando os pacotes readxl,
+dplyr, ggplot2 e demais ferramentas auxiliares para manipulação,
+visualização e exploração dos dados. O estudo foi conduzido em quatro
+etapas: leitura e tratamento dos dados, análise descritiva, visualização
+gráfica e análise de associações entre variáveis.
+
+# Base de Dados
+
+```{r}
+dados <- read_xlsx("dados/base.xlsx")
+```
+
+::: {.callout-note collapse="true"}
+## Ver pacotes e bibliotecas utilizadas
+
+```{r, eval = FALSE}
+#Carregando Bibliotecas
+library(readxl) # Auxilia na leitura do .xlsm
+library(dplyr) 
+library(ggplot2) # Construção de gráficos
+library(corrplot) # Construção do heatmap de correlação
+library(ggcorrplot) # Construção do heatmap de correlação
+library(forcats)
+library(plotly) # Construção de gráficos interativos
+library(DT)
+library(scales) 
+library(geobr) # Download e análise dos mapas de minas gerais
+library(sf)
+library(stringi)
+```
+:::
+
+::: {.callout-note collapse="true"}
+## Ver saída completa da estrutura da base
+
+```{r}
+str(dados)
+```
+:::
+
+A partir da inspeção inicial da base utilizando a função str(),
+observou-se que o conjunto de dados é composto por 853 observações
+(municípios) e 11 variáveis, contemplando indicadores demográficos,
+econômicos, territoriais, educacionais e sociais dos municípios do
+estado de Minas Gerais.
+
+As variáveis identificadas e seus respectivos tipos de dados são:
+
+- Município \[-\] — caractere (chr)
+- Área Territorial - km² \[2025\] — numérico (num)
+- População no último censo - pessoas \[2022\] — numérico (num)
+- Densidade demográfica - hab/km² \[2022\] — numérico (num)
+- População estimada - pessoas \[2025\] — numérico (num)
+- Escolarização 6 a 14 anos - % \[2022\] — numérico (num)
+- IDHM - Índice de Desenvolvimento Humano Municipal \[2010\] — numérico
+  (num)
+- Mortalidade infantil - óbitos por mil nascidos vivos \[2023\] —
+  caractere (chr)
+- Total de receitas brutas realizadas - R\$ \[2024\] — numérico (num)
+- Total de despesas brutas empenhadas - R\$ \[2024\] — numérico (num)
+- PIB per capita - R\$ \[2023\] — numérico (num)
+
+## Tratamento dos Dados
+
+Durante a análise da estrutura dos dados, identificou-se uma
+inconsistência na variável ***Mortalidade infantil - óbitos por mil
+nascidos vivos \[2023\]***, que foi importada como caractere (chr)
+apesar de representar valores numéricos. Essa situação ocorreu devido à
+presença do caractere "-" em registros onde não havia informação
+disponível para o indicador.
+
+Para padronizar a base de dados e possibilitar análises estatísticas
+posteriores, os registros contendo "-" foram substituídos por valores
+ausentes (NA). Em seguida, a variável foi convertida para o tipo
+numérico (num), tornando-a compatível com os demais procedimentos de
+análise exploratória realizados neste trabalho.
+
+```{r}
+#Alteração do caracter "-" por NA
+dados <- dados %>%
+  mutate(
+    `Mortalidade infantil - óbitos por mil nascidos vivos [2023]` =
+      na_if(`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`, "-")
+  )
+
+#Conversão dos tipos de dados para numéricos
+dados <- dados %>%
+  mutate(
+    `Mortalidade infantil - óbitos por mil nascidos vivos [2023]` =
+      as.numeric(`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+  )
+
+```
+
+::: {.callout-note collapse="true"}
+### Estrutura atualizada de Mortalidade infantil
+
+```{r}
+str(dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+```
+:::
+
+::: {.callout-note collapse="true"}
+### Ver saída completa da estrutura da base tratada
+
+```{r}
+str(dados)
+```
+:::
+
+# Análise Descritiva das variáveis
+
+## Municípios
+
+:::: panel-tabset
+### Descrição
+
+- **Coluna:** Município \[-\]
+- **Tipo de dados:** Texto \[chr\]
+- **Tipo de variável:** Qualitativa nominal
+- **Descrição:** Identificador nominal correspondente ao nome de cada
+  município presente na base de dados.
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Quantidade de registros", "Municípios distintos"),
+  Valor = c(
+    length(dados$`Município [-]`),
+    length(unique(dados$`Município [-]`))
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 0)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Interpretação
+
+Em relação à variável dos municípios, os dados mostram que o estudo
+conta com ***853 observações*** e ***853 cidades distintas***. Esse
+número coincide exatamente com a quantidade total de municípios do
+estado de Minas Gerais, o que indica que o trabalho utiliza um
+mapeamento completo da região e não apenas uma amostra parcial. Como
+cada linha da tabela corresponde a um unico municipío, os dados estão
+bem estruturados e organizados para que se possa analisar e comparar os
+indicadores econômicos e sociais de cada localidade sem o risco de erros
+ou contagens duplicadas.
+::::
+
+## Área Territorial
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Área Territorial - km² \[2025\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa contínua
+- **Unidade de medida:** Km²
+- **Descrição:** Representa a extensão em quilômetros quadrados do
+  município analisado
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão"),
+  Valor = c(
+    mean(dados$'Área Territorial - km² [2025]', na.rm = TRUE),
+    median(dados$'Área Territorial - km² [2025]', na.rm = TRUE),
+    min(dados$'Área Territorial - km² [2025]', na.rm = TRUE),
+    max(dados$'Área Territorial - km² [2025]', na.rm = TRUE),
+    sd(dados$'Área Territorial - km² [2025]', na.rm = TRUE)
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Área Territorial - km² [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Área Territorial dos Municípios",
+    x = "Área Territorial (km²)",
+    y = "Quantidade de Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Área Territorial - km² [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) + 
+  labs(
+    title = "Distribuição da Área Territorial dos Municípios",
+    x = "Área Territorial (km²)",
+    y = "Quantidade de Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimca
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Área Territorial - km² [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) + 
+  scale_x_log10() +
+  labs(
+    title = "Distribuição da Área Territorial dos Municípios",
+    x = "Área Territorial (km²)",
+    y = "Quantidade de Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Área Territorial - km² [2025]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Área Territorial",
+    y = "Área Territorial (km²)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Área Territorial - km² [2025]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Área Territorial",
+    y = "Área Territorial (km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimca
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = log10(`Área Territorial - km² [2025]`))
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Área Territorial",
+    y = "Área Territorial (km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo = FALSE}
+top10_area <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`
+  ) %>%
+  arrange(desc(Area)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_area,
+  aes(
+    x = fct_reorder(Municipio, Area),
+    y = Area
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Area, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior área territorial de Minas Gerais",
+    x = NULL,
+    y = "Área (Km²)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_area <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`
+  ) %>%
+  arrange(desc(Area)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_area,
+  aes(
+    x = fct_reorder(Municipio, Area),
+    y = Area
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Area, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior área territorial de Minas Gerais",
+    x = NULL,
+    y = "Área (Km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo = FALSE}
+bottom10_area <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`
+  ) %>%
+  arrange(Area) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_area,
+  aes(
+    x = fct_reorder(Municipio, Area),
+    y = Area
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Area, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor área territorial de Minas Gerais",
+    x = NULL,
+    y = "Área (Km²)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_area <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`
+  ) %>%
+  arrange(Area) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_area,
+  aes(
+    x = fct_reorder(Municipio, Area),
+    y = Area
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Area, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior área territorial de Minas Gerais",
+    x = NULL,
+    y = "Área (Km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A análise descritiva da variável área territorial apresentou um perfil
+de distribuição assimétrico positivo. (à direita). Essa condição é
+evidenciada pelo distanciamento entre a ***mediana = 363,82 km²*** e a
+média = ***687,59 km²***, indicando que a maior parte das observações
+concentra-se em extensões territoriais menores, enquanto a média é
+inflacionada por um número menor de observações com valores altos
+extremos (outliers). A variabilidade dos dados é refletida por um desvio
+padrão de 965,83 km², o qual supera a média e evidencia a alta dispersão
+do conjunto de dados, delimitado entre os valores extremos de ***3,56
+km² (mínimo)*** e ***10727,1 km² (máximo)***. Diante dessa assimetria e
+da presença de outliers na extremidade superior, a mediana mostra-se
+como a medida de tendência central mais adequada e representativa para
+descrever o comportamento típico da amostra estudada.
+::::::::::
+
+## População (Censo) 2022
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** População no último censo - pessoas \[2022\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Número de pessoas
+- **Descrição:** Censo populacional do município produzida pelo IBGE
+  para 2022.
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão"),
+  Valor = c(
+    mean(dados$'População no último censo - pessoas [2022]', na.rm = TRUE),
+    median(dados$'População no último censo - pessoas [2022]', na.rm = TRUE),
+    min(dados$'População no último censo - pessoas [2022]', na.rm = TRUE),
+    max(dados$'População no último censo - pessoas [2022]', na.rm = TRUE),
+    sd(dados$'População no último censo - pessoas [2022]', na.rm = TRUE)
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da População dos Municípios em 2022",
+    x = "População no último censo - pessoas [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da População dos Municípios em 2022",
+    x = "População no último censo - pessoas [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimca
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_log10() +
+  labs(
+    title = "Distribuição da População dos Municípios em 2022",
+    x = "População no último censo - pessoas [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da População em 2022",
+    y = "População no último censo - pessoas [2022]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da População em 2022",
+    y = "População no último censo - pessoas [2022]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot em escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População no último censo - pessoas [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_log10() +
+  labs(
+    title = "Boxplot da População em 2022",
+    y = "População no último censo - pessoas [2022]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo = FALSE}
+top10_populacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Populacao = `População no último censo - pessoas [2022]`
+  ) %>%
+  arrange(desc(Populacao)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_populacao,
+  aes(
+    x = fct_reorder(Municipio, Populacao),
+    y = Populacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Populacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios mais populosos de Minas Gerais",
+    x = NULL,
+    y = "Populacao (habitantes)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_populacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Populacao = `População no último censo - pessoas [2022]`
+  ) %>%
+  arrange(desc(Populacao)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_populacao,
+  aes(
+    x = fct_reorder(Municipio, Populacao),
+    y = Populacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Populacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios mais populosos de Minas Gerais",
+    x = NULL,
+    y = "Populacao (habitantes)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo = FALSE}
+bottom10_populacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Populacao = `População no último censo - pessoas [2022]`
+  ) %>%
+  arrange(Populacao) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_populacao,
+  aes(
+    x = fct_reorder(Municipio, Populacao),
+    y = Populacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Populacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios menos populosos de Minas Gerais",
+    x = NULL,
+    y = "Populacao (habitantes)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_populacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Populacao = `População no último censo - pessoas [2022]`
+  ) %>%
+  arrange(Populacao) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_populacao,
+  aes(
+    x = fct_reorder(Municipio, Populacao),
+    y = Populacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Populacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios mais populosos de Minas Gerais",
+    x = NULL,
+    y = "Populacao (habitantes)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição da população dos municípios mineiros apresenta forte
+assimetria positiva (à direita), evidenciada pela grande diferença entre
+a ***média (24.079 habitantes)*** e a ***mediana (8.048 habitantes)***.
+Esse comportamento indica que a maior parte dos municípios possui
+população relativamente reduzida, enquanto poucos municípios de grande
+porte elevam significativamente a média da distribuição.
+
+A elevada dispersão observada é reforçada pelo ***desvio padrão de
+94.352 habitantes***, valor aproximadamente quatro vezes superior à
+média, além da ampla variação entre o menor município da amostra ***(833
+habitantes)*** e o maior, Belo Horizonte, com ***2.315.560
+habitantes***.
+
+O histograma e o boxplot evidenciam a presença de diversos outliers
+superiores, característicos de distribuições populacionais, nas quais
+poucos centros urbanos concentram grande parcela da população estadual.
+Em função dessa assimetria, a mediana mostra-se uma medida mais
+representativa do município típico mineiro do que a média aritmética.
+
+Esses resultados demonstram que Minas Gerais possui uma estrutura
+populacional bastante heterogênea, composta majoritariamente por
+municípios de pequeno porte e por um número reduzido de grandes centros
+urbanos que concentram parcela significativa dos habitantes do estado.
+::::::::::
+
+## Densidade Demográfica
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Densidade demográfica - hab/km² \[2022\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa contínua
+- **Unidade de medida:** habitantes/km²
+- **Descrição:** Estima a razão da quantidade de habitantes pela área
+  total em quilômetros quadrados do município.
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão", "Coeficiente de variação"),
+  Valor = c(
+    mean(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE),
+    median(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE),
+    min(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE),
+    max(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE),
+    sd(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE),
+    cv <- sd(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE) / 
+      mean(dados$'Densidade demográfica - hab/km² [2022]', na.rm = TRUE) * 100
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Densidade Demográfica dos Municípios",
+    x = "Densidade demográfica - hab/km² [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Densidade Demográfica dos Municípios",
+    x = "Densidade demográfica - hab/km² [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) + 
+  scale_x_log10() +
+  labs(
+    title = "Distribuição da Densidade Demográfica dos Municípios",
+    x = "Densidade demográfica - hab/km² [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Densidade Demográfica",
+    y = "Densidade demográfica - hab/km² [2022]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Densidade Demográfica",
+    y = "Densidade demográfica - hab/km² [2022]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Densidade demográfica - hab/km² [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_log10() +
+  labs(
+    title = "Boxplot da Densidade Demográfica",
+    y = "Densidade demográfica - hab/km² [2022]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo = FALSE}
+top10_densidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Densidade = `Densidade demográfica - hab/km² [2022]`
+  ) %>%
+  arrange(desc(Densidade)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_densidade,
+  aes(
+    x = fct_reorder(Municipio, Densidade),
+    y = Densidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Densidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior densidade demográfica de Minas Gerais",
+    x = NULL,
+    y = "Densidade demográfica (hab/km²)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_densidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Densidade = `Densidade demográfica - hab/km² [2022]`
+  ) %>%
+  arrange(desc(Densidade)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_densidade,
+  aes(
+    x = fct_reorder(Municipio, Densidade),
+    y = Densidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Densidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior densidade demográfica de Minas Gerais",
+    x = NULL,
+    y = "Densidade demográfica (hab/km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo = FALSE}
+bottom10_densidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Densidade = `Densidade demográfica - hab/km² [2022]`
+  ) %>%
+  arrange(Densidade) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_densidade,
+  aes(
+    x = fct_reorder(Municipio, Densidade),
+    y = Densidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Densidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor densidade demográfica de Minas Gerais",
+    x = NULL,
+    y = "Densidade demográfica (hab/km²)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_densidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Densidade = `Densidade demográfica - hab/km² [2022]`
+  ) %>%
+  arrange(Densidade) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_densidade,
+  aes(
+    x = fct_reorder(Municipio, Densidade),
+    y = Densidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Densidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor densidade demográfica de Minas Gerais",
+    x = NULL,
+    y = "Densidade demográfica (hab/km²)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A densidade demográfica revela como a ocupação do território é
+desequilibrada na base de dados. O município com menor ocupação
+apresenta apenas 1,21 habitantes por quilômetro quadrado, o que indica
+uma área predominantemente rural ou com muita extensão territorial e
+poucos moradores. No outro extremo, a densidade máxima atinge 6.988,18
+habitantes por quilômetro quadrado, refletindo um grande centro urbano.
+A mediana nos mostra que metade das cidades possui menos de 22,09
+habitantes por quilômetro quadrado, evidenciando que o perfil típico da
+maioria das localidades é de baixa ocupação. A média, no entanto, é
+levada para 69,09 devido ao peso dessas poucas cidades intensamente
+povoadas (outliers). Esse distanciamento entre a maioria e as exceções
+gera um desvio padrão de 314,42, o que comprova que a distribuição é
+muito dispersa.
+::::::::::
+
+## População Estimada 2025
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** População estimada - pessoas \[2025\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Número de pessoas
+- **Descrição:** Estimativa populacional do município produzida pelo
+  IBGE para 2025. (Essa variável representa uma estimativa em função do
+  censo anterior de 2022)
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão", "Crescimento médio estimado"),
+  Valor = c(
+    mean(dados$'População estimada - pessoas [2025]', na.rm = TRUE),
+    median(dados$'População estimada - pessoas [2025]', na.rm = TRUE),
+    min(dados$'População estimada - pessoas [2025]', na.rm = TRUE),
+    max(dados$'População estimada - pessoas [2025]', na.rm = TRUE),
+    sd(dados$'População estimada - pessoas [2025]', na.rm = TRUE),
+    crescimento <- mean(dados$'População estimada - pessoas [2025]', na.rm = TRUE) - 
+      mean(dados$'População no último censo - pessoas [2022]', na.rm = TRUE)
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População estimada - pessoas [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da População Estimada de 2025 dos Municípios",
+    x = "População estimada - pessoas [2025]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População estimada - pessoas [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da População Estimada de 2025 dos Municípios",
+    x = "População estimada - pessoas [2025]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `População estimada - pessoas [2025]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_log10() +
+  labs(
+    title = "Distribuição da População Estimada de 2025 dos Municípios",
+    x = "População estimada - pessoas [2025]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População estimada - pessoas [2025]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da População Estimada 2025",
+    y = "População estimada - pessoas [2025]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População estimada - pessoas [2025]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da População Estimada 2025",
+    y = "População estimada - pessoas [2025]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `População estimada - pessoas [2025]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_log10() +
+  labs(
+    title = "Boxplot da População Estimada 2025",
+    y = "População estimada - pessoas [2025]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_populacao_estimada <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PopulacaoEstimada = `População estimada - pessoas [2025]`
+  ) %>%
+  arrange(desc(PopulacaoEstimada)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_populacao_estimada,
+  aes(
+    x = fct_reorder(Municipio, PopulacaoEstimada),
+    y = PopulacaoEstimada
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(PopulacaoEstimada, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior população estimada de Minas Gerais",
+    x = NULL,
+    y = "População estimada (habitantes)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_populacao_estimada <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PopulacaoEstimada = `População estimada - pessoas [2025]`
+  ) %>%
+  arrange(desc(PopulacaoEstimada)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_populacao_estimada,
+  aes(
+    x = fct_reorder(Municipio, PopulacaoEstimada),
+    y = PopulacaoEstimada
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(PopulacaoEstimada, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior população estimada de Minas Gerais",
+    x = NULL,
+    y = "População estimada (habitantes)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_populacao_estimada <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PopulacaoEstimada = `População estimada - pessoas [2025]`
+  ) %>%
+  arrange(PopulacaoEstimada) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_populacao_estimada,
+  aes(
+    x = fct_reorder(Municipio, PopulacaoEstimada),
+    y = PopulacaoEstimada
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(PopulacaoEstimada, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor população estimada de Minas Gerais",
+    x = NULL,
+    y = "População estimada (habitantes)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_populacao_estimada <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PopulacaoEstimada = `População estimada - pessoas [2025]`
+  ) %>%
+  arrange(PopulacaoEstimada) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_populacao_estimada,
+  aes(
+    x = fct_reorder(Municipio, PopulacaoEstimada),
+    y = PopulacaoEstimada
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(PopulacaoEstimada, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor população estimada de Minas Gerais",
+    x = NULL,
+    y = "População estimada (habitantes)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A população estimada para 2025 mantém o padrão de forte assimetria
+observado na população censitária de 2022. A mediana de 8.237 habitantes
+indica que metade dos municípios mineiros possui população estimada
+inferior a esse valor, reforçando a predominância de municípios de
+pequeno porte no estado. A média de 25.080,24 habitantes é
+significativamente superior à mediana, evidenciando o impacto de poucos
+grandes centros urbanos sobre a distribuição.
+
+A amplitude dos dados também reforça essa desigualdade populacional: o
+menor município apresenta estimativa de 856 habitantes, enquanto o maior
+atinge 2.415.872 habitantes. O desvio padrão de 98.769,88 revela elevada
+dispersão, indicando grande heterogeneidade no porte populacional dos
+municípios mineiros. O crescimento médio estimado de 1.000,53 habitantes
+por município deve ser interpretado com cautela, pois, em distribuições
+muito assimétricas, a média pode ser influenciada de forma expressiva
+pelos municípios mais populosos.
+::::::::::
+
+## Escolarização
+
+::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Escolarização 6 a 14 anos - % \[2022\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa contínua
+- **Unidade de medida:** Percentual de escolarização
+- **Descrição:** Representa o percentual de escolarização atingido em
+  cada município para crianças de 6 a 14 anos de idade
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão", "Coeficiente de Variação"),
+  Valor = c(
+    mean(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE),
+    median(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE),
+    min(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE),
+    max(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE),
+    sd(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE),
+    cv <- sd(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE) / mean(dados$'Escolarização <span>6 a 14 anos</span> - % [2022]', na.rm = TRUE) * 100
+    
+  )
+)
+
+estatisticas$Valor <- formatar_percentual(estatisticas$Valor)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Escolarização <span>6 a 14 anos</span> - % [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Escolarização (%) dos Municípios",
+    x = "Escolarização 6 a 14 anos - % [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Escolarização <span>6 a 14 anos</span> - % [2022]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Escolarização (%) dos Municípios",
+    x = "Escolarização 6 a 14 anos - % [2022]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Escolarização <span>6 a 14 anos</span> - % [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Escolarização (%)",
+    y = "Escolarização 6 a 14 anos - % [2022]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Escolarização <span>6 a 14 anos</span> - % [2022]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Escolarização (%)",
+    y = "Escolarização 6 a 14 anos - % [2022]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_escolarizacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Escolarizacao = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  ) %>%
+  arrange(desc(Escolarizacao)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_escolarizacao,
+  aes(
+    x = fct_reorder(Municipio, Escolarizacao),
+    y = Escolarizacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Escolarizacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior escolarização de Minas Gerais",
+    x = NULL,
+    y = "Escolarização (%)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_escolarizacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Escolarizacao = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  ) %>%
+  arrange(desc(Escolarizacao)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_escolarizacao,
+  aes(
+    x = fct_reorder(Municipio, Escolarizacao),
+    y = Escolarizacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Escolarizacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior escolarização de Minas Gerais",
+    x = NULL,
+    y = "Escolarização (%)"
+  ) +
+  theme_minimal()
+```
+:::
+
+```{r}
+#| include: false
+
+municipios_escolarizacao_maxima <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Escolarizacao = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  ) %>%
+  filter(Escolarizacao == max(Escolarizacao)) %>%
+  arrange(Municipio)
+
+qtd_escolarizacao_maxima <- nrow(municipios_escolarizacao_maxima)
+```
+
+Foram identificados **`r qtd_escolarizacao_maxima` municípios** com taxa
+máxima de escolarização, portanto esse top 10 exibe apenas os 10
+primeiros desses 214 em ordem alfabética.
+
+::: {.callout-note collapse="true"}
+#### Ver todos os municípios com 100% de escolarização
+
+```{r, echo = FALSE}
+municipios_escolarizacao_maxima %>%
+  select(Municipio) %>%
+  mutate(grupo = ceiling(row_number() / ceiling(n() / 3))) %>%
+  group_by(grupo) %>%
+  summarise(Municípios = paste(Municipio, collapse = ", ")) %>%
+  select(-grupo) %>%
+  knitr::kable()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_escolarizacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Escolarizacao = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  ) %>%
+  arrange(Escolarizacao) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_escolarizacao,
+  aes(
+    x = fct_reorder(Municipio, Escolarizacao),
+    y = Escolarizacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Escolarizacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor escolarização de Minas Gerais",
+    x = NULL,
+    y = "Escolarização (%)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_escolarizacao <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Escolarizacao = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  ) %>%
+  arrange(Escolarizacao) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_escolarizacao,
+  aes(
+    x = fct_reorder(Municipio, Escolarizacao),
+    y = Escolarizacao
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Escolarizacao, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor escolarização de Minas Gerais",
+    x = NULL,
+    y = "Escolarização (%)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A análise mostra uma distribuição elevada e homogênea para a taxa de
+escolarização de crianças de 6 a 14 anos entre os municípios mineiros. A
+média de 98,99% e a mediana de 99,29% são muito próximas, indicando que
+a maior parte dos municípios apresenta índices altos e semelhantes de
+escolarização.
+
+O menor valor observado foi de 84,92%, enquanto o máximo atingiu
+100,00%, mostrando que há alguns municípios com desempenho inferior, mas
+que eles representam exceções dentro da base. Essa baixa dispersão é
+confirmada pelo desvio padrão de 1,35% e pelo coeficiente de variação de
+1,37%, valores bastante reduzidos quando comparados às demais variáveis
+analisadas.
+
+Dessa forma, a escolarização apresenta comportamento muito mais uniforme
+do que indicadores como população, densidade demográfica e área
+territorial. O histograma e o boxplot reforçam essa leitura,
+evidenciando forte concentração dos municípios entre 98% e 100% e poucos
+valores atípicos inferiores.
+:::::::::
+
+## IDHM
+
+:::::::: panel-tabset
+### Descrição
+
+- **Coluna:** IDHM Índice de desenvolvimento humano municipal \[2010\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa contínua
+- **Unidade de medida:** Valor do IDH de 0 a 1
+- **Descrição:** Representa o valor do índice de desenvolvimento humano
+  do município, avaliado numa escala de 0 a 1
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão", "Coeficiente de Variação"),
+  Valor = c(
+    mean(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE),
+    median(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE),
+    min(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE),
+    max(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE),
+    sd(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE),
+    sd(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE) / mean(dados$'IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]', na.rm = TRUE) * 100
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+
+estatisticas$Valor[ estatisticas$Medida == "Coeficiente de Variação"] <- formatar_percentual(
+  as.numeric(
+    estatisticas$Valor[estatisticas$Medida == "Coeficiente de Variação"]
+  )
+)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição do IDH dos Municípios",
+    x = "IDHM Índice de desenvolvimento humano municipal [2010]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição do IDH dos Municípios",
+    x = "IDHM Índice de desenvolvimento humano municipal [2010]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot do IDH Municipal",
+    y = "IDHM Índice de desenvolvimento humano municipal [2010]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(y = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot do IDH Municipal",
+    y = "IDHM Índice de desenvolvimento humano municipal [2010]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_idhm <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    IDHM = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`
+  ) %>%
+  arrange(desc(IDHM)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_idhm,
+  aes(
+    x = fct_reorder(Municipio, IDHM),
+    y = IDHM
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(IDHM, big.mark = " ", decimal.mark = ",", nsmall = 3)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior IDHM de Minas Gerais",
+    x = NULL,
+    y = "IDHM"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_idhm <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    IDHM = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`
+  ) %>%
+  arrange(desc(IDHM)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_idhm,
+  aes(
+    x = fct_reorder(Municipio, IDHM),
+    y = IDHM
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(IDHM, big.mark = " ", decimal.mark = ",", nsmall = 3)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior IDHM de Minas Gerais",
+    x = NULL,
+    y = "IDHM"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_idhm <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    IDHM = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`
+  ) %>%
+  arrange(IDHM) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_idhm,
+  aes(
+    x = fct_reorder(Municipio, IDHM),
+    y = IDHM
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(IDHM, big.mark = " ", decimal.mark = ",", nsmall = 3)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor IDHM de Minas Gerais",
+    x = NULL,
+    y = "IDHM"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_idhm <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    IDHM = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`
+  ) %>%
+  arrange(IDHM) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_idhm,
+  aes(
+    x = fct_reorder(Municipio, IDHM),
+    y = IDHM
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(IDHM, big.mark = " ", decimal.mark = ",", nsmall = 3)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor IDHM de Minas Gerais",
+    x = NULL,
+    y = "IDHM"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição do Índice de Desenvolvimento Humano Municipal apresenta
+comportamento relativamente equilibrado entre os municípios mineiros. A
+média e a mediana, ambas iguais a 0,67, indicam uma distribuição
+aproximadamente simétrica e sugerem que a maior parte dos municípios se
+concentra em torno do valor central da amostra.
+
+O menor IDHM observado foi de 0,53, enquanto o maior atingiu 0,81,
+demonstrando que existem diferenças de desenvolvimento entre os
+municípios, embora elas ocorram dentro de uma faixa relativamente
+limitada da escala do indicador. O histograma evidencia uma concentração
+de municípios entre 0,60 e 0,75, enquanto o boxplot revela baixa
+dispersão e poucos valores extremos.
+
+O desvio padrão de 0,05 e o coeficiente de variação de aproximadamente
+7,46% reforçam a homogeneidade dos dados quando comparados a outras
+variáveis analisadas, como população, área territorial e densidade
+demográfica. Esses resultados sugerem que a maioria dos municípios
+mineiros se encontra em níveis semelhantes de desenvolvimento humano,
+predominando a classificação de desenvolvimento humano médio a alto.
+::::::::
+
+## Mortalidade Infantil
+
+::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Mortalidade infantil - óbitos por mil nascidos vivos
+  \[2023\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Número de óbitos para cada mil nascidos vivos
+- **Descrição:** Representa o a razão entre o número de óbitos infantis
+  para cada mil nascidos vivos. Como demonstrado no gráfico abaixo,
+  cerca de um terço dos registros dessa variável não foram preenchidos
+  e, para seguimento das análises, estes foram desconsiderados
+
+```{r, echo = FALSE}
+dados_preenchimento <- data.frame(
+  Situacao = c("Preenchido", "Sem preenchimento"),
+  Quantidade = c(
+    sum(!is.na(dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)),
+    sum(is.na(dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`))
+  )
+)
+
+dados_preenchimento$Percentual <- round(
+  dados_preenchimento$Quantidade /
+    sum(dados_preenchimento$Quantidade) * 100,
+  1
+)
+
+ggplot(
+  dados_preenchimento,
+  aes(
+    x = 2,
+    y = Quantidade,
+    fill = Situacao
+  )
+) +
+  geom_col(
+    width = 1,
+    color = "white"
+  ) +
+  coord_polar(theta = "y") +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(
+    values = c(
+      "Preenchido" = "steelblue",
+      "Sem preenchimento" = "darkorange2"
+    )
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        Quantidade,
+        "\n(",
+        formatar_percentual(Percentual),
+        ")"
+      )
+    ),
+    position = position_stack(vjust = 0.5),
+    size = 4,
+    color = "white",
+    fontface = "bold"
+  ) +
+  labs(
+    title = "Disponibilidade dos dados de Mortalidade Infantil",
+    fill = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+dados_preenchimento <- data.frame(
+  Situacao = c("Preenchido", "Sem preenchimento"),
+  Quantidade = c(
+    sum(!is.na(dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)),
+    sum(is.na(dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`))
+  )
+)
+
+dados_preenchimento$Percentual <- round(
+  dados_preenchimento$Quantidade /
+    sum(dados_preenchimento$Quantidade) * 100,
+  1
+)
+
+ggplot(
+  dados_preenchimento,
+  aes(
+    x = 2,
+    y = Quantidade,
+    fill = Situacao
+  )
+) +
+  geom_col(
+    width = 1,
+    color = "white"
+  ) +
+  coord_polar(theta = "y") +
+  xlim(0.5, 2.5) +
+  scale_fill_manual(
+    values = c(
+      "Preenchido" = "steelblue",
+      "Sem preenchimento" = "darkorange2"
+    )
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        Quantidade,
+        "\n(",
+        formatar_percentual(Percentual),
+        ")"
+      )
+    ),
+    position = position_stack(vjust = 0.5),
+    size = 4,
+    color = "white",
+    fontface = "bold"
+  ) +
+  labs(
+    title = "Disponibilidade dos dados de Mortalidade Infantil",
+    fill = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+  )
+```
+:::
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+estatisticas <- data.frame(
+  Medida = c("Média", "Mediana", "Mínimo", "Máximo", "Desvio Padrão", "Coeficiente de Variação", "Registros vazios"),
+  Valor = c(
+    mean(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE),
+    median(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE),
+    min(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE),
+    max(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE),
+    sd(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE),
+    sd(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE) / mean(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]', na.rm = TRUE) * 100, 
+    sum(is.na(dados$'Mortalidade infantil - óbitos por mil nascidos vivos [2023]'))
+  )
+)
+
+estatisticas$Valor <- round(estatisticas$Valor, 2)
+
+estatisticas$Valor[ estatisticas$Medida == "Coeficiente de Variação"] <- formatar_percentual(
+  as.numeric(
+    estatisticas$Valor[estatisticas$Medida == "Coeficiente de Variação"]
+  )
+)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas, align = c("l", "l"))
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Mortalidade Infantil nos Municípios",
+    x = "Mortalidade infantil - óbitos por mil nascidos vivos [2023]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Distribuição da Mortalidade Infantil nos Municípios",
+    x = "Mortalidade infantil - óbitos por mil nascidos vivos [2023]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Mortalidade Infantil",
+    y = "Mortalidade infantil - óbitos por mil nascidos vivos [2023]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  labs(
+    title = "Boxplot da Mortalidade Infantil",
+    y = "Mortalidade infantil - óbitos por mil nascidos vivos [2023]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_mortalidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Mortalidade = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`
+  ) %>%
+  filter(!is.na(Mortalidade)) %>%
+  arrange(desc(Mortalidade)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_mortalidade,
+  aes(
+    x = fct_reorder(Municipio, Mortalidade),
+    y = Mortalidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Mortalidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior mortalidade infantil de Minas Gerais",
+    x = NULL,
+    y = "Óbitos por mil nascidos vivos"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_mortalidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Mortalidade = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`
+  ) %>%
+  filter(!is.na(Mortalidade)) %>%
+  arrange(desc(Mortalidade)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_mortalidade,
+  aes(
+    x = fct_reorder(Municipio, Mortalidade),
+    y = Mortalidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Mortalidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com maior mortalidade infantil de Minas Gerais",
+    x = NULL,
+    y = "Óbitos por mil nascidos vivos"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_mortalidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Mortalidade = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`
+  ) %>%
+  filter(!is.na(Mortalidade)) %>%
+  arrange(Mortalidade) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_mortalidade,
+  aes(
+    x = fct_reorder(Municipio, Mortalidade),
+    y = Mortalidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Mortalidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor mortalidade infantil de Minas Gerais",
+    x = NULL,
+    y = "Óbitos por mil nascidos vivos"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_mortalidade <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Mortalidade = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`
+  ) %>%
+  filter(!is.na(Mortalidade)) %>%
+  arrange(Mortalidade) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_mortalidade,
+  aes(
+    x = fct_reorder(Municipio, Mortalidade),
+    y = Mortalidade
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = format(Mortalidade, big.mark = " ", decimal.mark = ",", nsmall = 2)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    title = "10 Municípios com menor mortalidade infantil de Minas Gerais",
+    x = NULL,
+    y = "Óbitos por mil nascidos vivos"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição da mortalidade infantil apresenta forte assimetria
+positiva, indicando que a maior parte dos municípios registra taxas
+relativamente baixas de óbitos infantis, enquanto um grupo reduzido
+apresenta indicadores significativamente mais elevados. A mediana de
+14,51 óbitos por mil nascidos vivos mostra que metade dos municípios
+possui taxas inferiores a esse valor, enquanto a média de 18,66 é
+influenciada pela presença de municípios com mortalidade mais elevada.
+
+O histograma evidencia concentração dos municípios nas faixas inferiores
+da distribuição, enquanto o boxplot revela diversos outliers superiores,
+incluindo municípios que atingem valores próximos de 100 óbitos por mil
+nascidos vivos. O desvio padrão de 13,73 e o coeficiente de variação de
+aproximadamente 73,58% reforçam a elevada heterogeneidade desse
+indicador entre os municípios analisados.
+
+Outro aspecto relevante é a existência de 294 registros sem informação,
+representando aproximadamente 34,5% da base de dados. Embora esses
+valores tenham sido desconsiderados para os cálculos estatísticos, sua
+quantidade é suficientemente elevada para exigir cautela na
+interpretação dos resultados, uma vez que a ausência dessas observações
+pode influenciar a representatividade do indicador.
+
+De forma geral, os resultados sugerem que, apesar de a maioria dos
+municípios apresentar níveis relativamente controlados de mortalidade
+infantil, ainda existem localidades com indicadores significativamente
+superiores à média estadual, evidenciando desigualdades nas condições de
+saúde pública e assistência à primeira infância.
+:::::::::
+
+## Receitas
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Total de receitas brutas realizadas - R\$ \[2024\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Reais (R\$)
+- **Descrição:** Valor bruto da receita em reais realizada pelo
+  município em 2024
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+receita <- dados$`Total de receitas brutas realizadas - R$ [2024]`
+
+media <- mean(receita, na.rm = TRUE)
+mediana <- median(receita, na.rm = TRUE)
+minimo <- min(receita, na.rm = TRUE)
+maximo <- max(receita, na.rm = TRUE)
+desvio <- sd(receita, na.rm = TRUE)
+cv <- desvio / media * 100
+
+estatisticas <- data.frame(
+  Medida = c(
+    "Média",
+    "Mediana",
+    "Mínimo",
+    "Máximo",
+    "Desvio Padrão",
+    "Coeficiente de Variação"
+  ),
+  Valor = c(
+    formatar_moeda(media),
+    formatar_moeda(mediana),
+    formatar_moeda(minimo),
+    formatar_moeda(maximo),
+    formatar_moeda(desvio),
+    formatar_percentual(cv)
+  )
+)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas)
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Receitas (R$) dos Municípios em 2024",
+    x = "Total de receitas brutas realizadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Receitas (R$) dos Municípios em 2024",
+    x = "Total de receitas brutas realizadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Receitas (R$) dos Municípios em 2024",
+    x = "Total de receitas brutas realizadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) + 
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Receita (R$)",
+    y = "Total de receitas brutas realizadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) + 
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Receita (R$)",
+    y = "Total de receitas brutas realizadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `Total de receitas brutas realizadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Receita (R$)",
+    y = "Total de receitas brutas realizadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_receitas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Receita = `Total de receitas brutas realizadas - R$ [2024]`
+  ) %>%
+  arrange(desc(Receita)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_receitas,
+  aes(
+    x = fct_reorder(Municipio, Receita),
+    y = Receita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Receita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com maior receita de Minas Gerais",
+    x = NULL,
+    y = "Receita (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_receitas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Receita = `Total de receitas brutas realizadas - R$ [2024]`
+  ) %>%
+  arrange(desc(Receita)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_receitas,
+  aes(
+    x = fct_reorder(Municipio, Receita),
+    y = Receita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Receita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com maior receita de Minas Gerais",
+    x = NULL,
+    y = "Receita (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_receitas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Receita = `Total de receitas brutas realizadas - R$ [2024]`
+  ) %>%
+  arrange(Receita) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_receitas,
+  aes(
+    x = fct_reorder(Municipio, Receita),
+    y = Receita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Receita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com menor receita de Minas Gerais",
+    x = NULL,
+    y = "Receita (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_receitas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Receita = `Total de receitas brutas realizadas - R$ [2024]`
+  ) %>%
+  arrange(Receita) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_receitas,
+  aes(
+    x = fct_reorder(Municipio, Receita),
+    y = Receita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Receita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com menor receita de Minas Gerais",
+    x = NULL,
+    y = "Receita (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição das receitas municipais apresenta forte assimetria
+positiva, evidenciando elevada concentração de recursos financeiros em
+um número reduzido de municípios. A mediana de R\$ 56,7 milhões indica
+que metade dos municípios arrecadou menos do que esse valor em 2024,
+enquanto a média de R\$ 182 milhões é significativamente superior,
+refletindo a influência exercida pelos grandes centros urbanos sobre a
+distribuição.
+
+A amplitude observada entre o menor valor (R\$ 1,58 milhão) e o maior
+(R\$ 19,29 bilhões) demonstra a grande disparidade existente na
+capacidade de arrecadação municipal. Essa diferença é reforçada pelo
+elevado desvio padrão de R\$ 852,4 milhões, valor muito superior à
+própria média da distribuição.
+
+O histograma e o boxplot evidenciam a presença de diversos outliers
+superiores, indicando que poucos municípios concentram parcela
+significativa das receitas públicas do estado. Esse comportamento é
+confirmado pelo coeficiente de variação de 468,45%, que revela uma
+dispersão extremamente elevada dos dados e reforça a heterogeneidade
+financeira entre os municípios mineiros.
+
+Dessa forma, a mediana mostra-se uma medida mais representativa do
+município típico do que a média, pois sofre menor influência dos grandes
+centros econômicos. Os resultados sugerem que a arrecadação pública em
+Minas Gerais está fortemente concentrada em poucas cidades, enquanto a
+maioria dos municípios opera com orçamentos significativamente menores.
+::::::::::
+
+## Despesas
+
+:::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** Total de despesas brutas empenhadas - R\$ \[2024\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Reais (R\$)
+- **Descrição:** Valor bruto da despesa em reais realizada pelo
+  município em 2024
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+despesa <- dados$`Total de despesas brutas empenhadas - R$ [2024]`
+
+media <- mean(despesa, na.rm = TRUE)
+mediana <- median(despesa, na.rm = TRUE)
+minimo <- min(despesa, na.rm = TRUE)
+maximo <- max(despesa, na.rm = TRUE)
+desvio <- sd(despesa, na.rm = TRUE)
+cv <- desvio / media * 100
+
+estatisticas <- data.frame(
+  Medida = c(
+    "Média",
+    "Mediana",
+    "Mínimo",
+    "Máximo",
+    "Desvio Padrão",
+    "Coeficiente de Variação"
+  ),
+  Valor = c(
+    formatar_moeda(media),
+    formatar_moeda(mediana),
+    formatar_moeda(minimo),
+    formatar_moeda(maximo),
+    formatar_moeda(desvio),
+    formatar_percentual(cv)
+  )
+)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas)
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Despesas (R$) dos Municípios em 2024",
+    x = "Total de despesas brutas empenhadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Despesas (R$) dos Municípios em 2024",
+    x = "Total de despesas brutas empenhadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+  scale_x_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição das Despesas (R$) dos Municípios em 2024",
+    x = "Total de despesas brutas empenhadas - R$ [2024]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Despesa (R$)",
+    y = "Total de despesas brutas empenhadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Despesa (R$)",
+    y = "Total de despesas brutas empenhadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimica
+
+```{r, eval = FALSE}
+  ggplot(
+    dados,
+    aes(x="", y = `Total de despesas brutas empenhadas - R$ [2024]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot da Despesa (R$)",
+    y = "Total de despesas brutas empenhadas - R$ [2024]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_despesas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Despesa = `Total de despesas brutas empenhadas - R$ [2024]`
+  ) %>%
+  arrange(desc(Despesa)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_despesas,
+  aes(
+    x = fct_reorder(Municipio, Despesa),
+    y = Despesa
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Despesa)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.40))
+  ) +
+  labs(
+    title = "10 Municípios com maior despesa de Minas Gerais",
+    x = NULL,
+    y = "Despesa (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_despesas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Despesa = `Total de despesas brutas empenhadas - R$ [2024]`
+  ) %>%
+  arrange(desc(Despesa)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_despesas,
+  aes(
+    x = fct_reorder(Municipio, Despesa),
+    y = Despesa
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Despesa)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.40))
+  ) +
+  labs(
+    title = "10 Municípios com maior despesa de Minas Gerais",
+    x = NULL,
+    y = "Despesa (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_despesas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Despesa = `Total de despesas brutas empenhadas - R$ [2024]`
+  ) %>%
+  arrange(Despesa) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_despesas,
+  aes(
+    x = fct_reorder(Municipio, Despesa),
+    y = Despesa
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Despesa)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.40))
+  ) +
+  labs(
+    title = "10 Municípios com menor despesa de Minas Gerais",
+    x = NULL,
+    y = "Despesa (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_despesas <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Despesa = `Total de despesas brutas empenhadas - R$ [2024]`
+  ) %>%
+  arrange(Despesa) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_despesas,
+  aes(
+    x = fct_reorder(Municipio, Despesa),
+    y = Despesa
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda_abreviada(Despesa)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.40))
+  ) +
+  labs(
+    title = "10 Municípios com menor despesa de Minas Gerais",
+    x = NULL,
+    y = "Despesa (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição das despesas municipais apresenta forte assimetria
+positiva, evidenciando que os gastos públicos estão concentrados em um
+número reduzido de municípios de grande porte. A mediana de R\$ 52,5
+milhões indica que metade das cidades empenhou despesas inferiores a
+esse valor em 2024, enquanto a média de R\$ 173,4 milhões é
+significativamente superior, refletindo a influência exercida pelas
+maiores economias municipais do estado.
+
+A amplitude observada entre o menor valor registrado (R\$ 21,9 milhões)
+e o maior (R\$ 19,42 bilhões) demonstra a grande disparidade existente
+na capacidade de execução orçamentária dos municípios. Essa diferença é
+reforçada pelo elevado desvio padrão de R\$ 817,2 milhões, valor muito
+superior à média da distribuição.
+
+O histograma e o boxplot evidenciam a presença de diversos outliers
+superiores, indicando que poucos municípios concentram parcela
+significativa dos gastos públicos estaduais. O coeficiente de variação
+de 471,28% reforça essa conclusão ao revelar uma dispersão extremamente
+elevada dos dados, evidenciando forte heterogeneidade na estrutura de
+despesas entre os municípios mineiros.
+
+Assim como observado na análise das receitas, a mediana representa
+melhor o comportamento típico da amostra do que a média, pois sofre
+menor influência dos grandes centros urbanos. Os resultados sugerem que
+os gastos públicos municipais acompanham a concentração econômica
+observada no estado, refletindo diferenças significativas de porte
+populacional, infraestrutura administrativa e demanda por serviços
+públicos.
+::::::::::
+
+## PIB per capita
+
+::::::::::: panel-tabset
+### Descrição
+
+- **Coluna:** PIB per capita - R\$ \[2023\]
+- **Tipo de dados:** Numérico \[num\]
+- **Tipo de variável:** Quantitativa discreta
+- **Unidade de medida:** Reais (R\$)
+- **Descrição:** Valor da razão entre o Produto Interno Bruto (PIB) do
+  município em reais pelo número total de habitantes em 2023
+
+### Estatísticas
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+pib <- dados$`PIB per capita - R$ [2023]`
+
+media <- mean(pib, na.rm = TRUE)
+mediana <- median(pib, na.rm = TRUE)
+minimo <- min(pib, na.rm = TRUE)
+maximo <- max(pib, na.rm = TRUE)
+desvio <- sd(pib, na.rm = TRUE)
+cv <- desvio / media * 100
+
+estatisticas <- data.frame(
+  Medida = c(
+    "Média",
+    "Mediana",
+    "Mínimo",
+    "Máximo",
+    "Desvio Padrão",
+    "Coeficiente de Variação"
+  ),
+  Valor = c(
+    formatar_moeda(media),
+    formatar_moeda(mediana),
+    formatar_moeda(minimo),
+    formatar_moeda(maximo),
+    formatar_moeda(desvio),
+    formatar_percentual(cv)
+  )
+)
+```
+:::
+
+```{r, echo=FALSE}
+knitr::kable(estatisticas)
+```
+
+### Histograma
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+   scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição do PIB per capita (R$) dos Municípios em 2023",
+    x = "PIB per capita - R$ [2023]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+   scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição do PIB per capita (R$) dos Municípios em 2023",
+    x = "PIB per capita - R$ [2023]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver histograma com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(x = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "steelblue"
+  ) +
+   scale_x_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Distribuição do PIB per capita (R$) dos Municípios em 2023",
+    x = "PIB per capita - R$ [2023]",
+    y = "Municípios"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Boxplot
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot do PIB per capita (R$)",
+    y = "PIB per capita - R$ [2023]"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot do PIB per capita (R$)",
+    y = "PIB per capita - R$ [2023]"
+  ) +
+  theme_minimal()
+```
+:::
+
+::: {.callout-note collapse="true"}
+#### Ver boxplot com escala logarítimica
+
+```{r, echo = FALSE}
+  ggplot(
+    dados,
+    aes(y = `PIB per capita - R$ [2023]`)
+  ) +
+  geom_boxplot(
+    fill = "steelblue"
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Boxplot do PIB per capita (R$)",
+    y = "PIB per capita - R$ [2023]"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Top 10
+
+```{r, echo= FALSE}
+top10_pib_per_capita <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PIBPerCapita = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(desc(PIBPerCapita)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_pib_per_capita,
+  aes(
+    x = fct_reorder(Municipio, PIBPerCapita),
+    y = PIBPerCapita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda(PIBPerCapita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com maior PIB per capita de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_pib_per_capita <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PIBPerCapita = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(desc(PIBPerCapita)) %>%
+  slice_head(n = 10)
+
+ggplot(
+  top10_pib_per_capita,
+  aes(
+    x = fct_reorder(Municipio, PIBPerCapita),
+    y = PIBPerCapita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda(PIBPerCapita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com maior PIB per capita de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Bottom 10
+
+```{r, echo= FALSE}
+bottom10_pib_per_capita <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PIBPerCapita = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(PIBPerCapita) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_pib_per_capita,
+  aes(
+    x = fct_reorder(Municipio, PIBPerCapita),
+    y = PIBPerCapita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda(PIBPerCapita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com menor PIB per capita de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+bottom10_pib_per_capita <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    PIBPerCapita = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(PIBPerCapita) %>%
+  slice_head(n = 10)
+
+ggplot(
+  bottom10_pib_per_capita,
+  aes(
+    x = fct_reorder(Municipio, PIBPerCapita),
+    y = PIBPerCapita
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(label = formatar_moeda(PIBPerCapita)),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    labels = formatar_abreviado,
+    expand = expansion(mult = c(0, 0.35))
+  ) +
+  labs(
+    title = "10 Municípios com menor PIB per capita de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### PIB x Top 10 áreas
+
+```{r, echo= FALSE}
+top10_area_pib <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`,
+    PIB = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(desc(Area)) %>%
+  slice_head(n = 10) 
+
+ggplot(
+  top10_area_pib,
+  aes(
+    x = Municipio,
+    y = PIB
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+  aes(
+    label = paste0(
+      "R$ ",
+      format(
+        round(PIB, 2),
+        big.mark = ".",
+        decimal.mark = ",",
+        nsmall = 2
+      ),
+      "\n(",
+      format(
+        round(Area, 0),
+        big.mark = ".",
+        decimal.mark = ","
+      ),
+      " km²)"
+    )
+  ),
+  hjust = -0.1,
+  size = 3.5
+) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15)),
+    labels = scales::label_number(
+      big.mark = ".",
+      decimal.mark = ","
+    )
+  ) +
+  labs(
+    title = "PIB per capita dos 10 maiores municípios em área territorial",
+    subtitle = "Municípios selecionados pelas maiores extensões territoriais de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+top10_area_pib <- dados %>%
+  select(
+    Municipio = `Município [-]`,
+    Area = `Área Territorial - km² [2025]`,
+    PIB = `PIB per capita - R$ [2023]`
+  ) %>%
+  arrange(desc(Area)) %>%
+  slice_head(n = 10) %>%
+  arrange(PIB)
+
+ggplot(
+  top10_area_pib,
+  aes(
+    x = fct_reorder(Municipio, PIB),
+    y = PIB
+  )
+) +
+  geom_col(fill = "steelblue") +
+  geom_text(
+    aes(
+      label = format(
+        PIB,
+        big.mark = ".",
+        decimal.mark = ",",
+        nsmall = 2
+      )
+    ),
+    hjust = -0.1,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15)),
+    labels = scales::label_number(
+      big.mark = ".",
+      decimal.mark = ","
+    )
+  ) +
+  labs(
+    title = "PIB per capita dos 10 maiores municípios em área territorial",
+    subtitle = "Municípios selecionados pelas maiores extensões territoriais de Minas Gerais",
+    x = NULL,
+    y = "PIB per capita (R$)"
+  ) +
+  theme_minimal()
+```
+:::
+
+### Interpretação
+
+A distribuição do PIB per capita apresenta assimetria positiva,
+indicando que a maior parte dos municípios mineiros possui valores
+relativamente baixos ou intermediários de produção econômica por
+habitante, enquanto poucos municípios apresentam valores muito
+superiores ao restante da base.
+
+A mediana de R\$ 24.727,70 mostra que metade dos municípios possui PIB
+per capita inferior a esse valor, enquanto a média de R\$ 34.487,09 é
+mais elevada devido à influência dos municípios com maior produção
+econômica por habitante. O valor máximo de R\$ 377.790,63 reforça a
+presença de outliers superiores.
+
+O desvio padrão de R\$ 33.321,68 e o coeficiente de variação de 96,62%
+indicam elevada heterogeneidade econômica entre os municípios. Dessa
+forma, a mediana representa melhor o município típico da amostra do que
+a média, pois é menos afetada pelos valores extremos.
+
+Em termos contextuais, os valores mais elevados podem estar associados a
+municípios com forte presença de atividades econômicas específicas, como
+mineração, indústria, agropecuária de alta produtividade ou concentração
+de empresas com alto valor agregado.
+
+Além da análise geral do PIB per capita, foi realizada uma comparação
+específica entre os dez municípios com maior área territorial de Minas
+Gerais. Os resultados mostram que a extensão territorial não está
+necessariamente associada a maiores níveis de riqueza por habitante.
+Embora municípios como Paracatu (R\$ 72.311,27), Uberaba (R\$ 70.120,94)
+e Unaí (R\$ 60.281,57) apresentem PIBs per capita elevados, outros
+municípios igualmente extensos, como João Pinheiro (R\$ 54.758,05),
+Buritizeiro (R\$ 35.635,57), Arinos (R\$ 31.528,95) e especialmente
+Januária (R\$ 15.970,66), registram valores significativamente
+inferiores. Destaca-se ainda o caso de João Pinheiro, maior município do
+estado em área territorial (10.727 km²), que não figura entre os maiores
+PIBs per capita do grupo analisado.
+
+Esses resultados reforçam que a geração de riqueza está mais relacionada
+à estrutura econômica e às atividades produtivas desenvolvidas em cada
+município do que à sua dimensão geográfica. Assim, possuir grande
+extensão territorial não implica necessariamente maior produtividade
+econômica por habitante.
+:::::::::::
+
+# Análise geográfica das principais variáveis
+
+A análise geográfica complementa as análises descritivas e
+correlacionais realizadas anteriormente. Enquanto histogramas, boxplots
+e coeficientes de correlação permitem compreender a distribuição dos
+indicadores e suas relações estatísticas, os mapas possibilitam
+identificar padrões geográficos e regionais que não seriam facilmente
+percebidos por meio de tabelas ou gráficos tradicionais. Nesta seção,
+cada variável é representada sobre o território mineiro, permitindo
+visualizar como características demográficas, sociais e econômicas se
+distribuem entre os municípios do estado.
+
+::: {.callout-note collapse="true"}
+## Ver fórmula utilizada para download do mapa
+
+```{r}
+# Baixando o mapa dos municípios de MG
+mg_municipios <- read_municipality(
+  code_muni = "MG",
+  year = 2020
+)
+
+# Relacionando as informações do mapa com os municípios de nossa base
+mapa_populacao <- mg_municipios %>%
+  left_join(
+    dados,
+    by = c(
+      "name_muni" = "Município [-]"
+    )
+  )
+```
+:::
+
+## Indicadores demográficos
+
+:::::: panel-tabset
+### População (Censo 2022)
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mg_municipios <- read_municipality(
+  code_muni = "MG",
+  year = 2020
+)
+
+dados_mapa <- dados %>%
+  mutate(
+    nome_padronizado = stri_trans_general(`Município [-]`, "Latin-ASCII") %>%
+      toupper()
+  )
+
+mg_municipios <- mg_municipios %>%
+  mutate(
+    nome_padronizado = stri_trans_general(name_muni, "Latin-ASCII") %>%
+      toupper()
+ )
+
+mapa_populacao <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_populacao = cut(
+      `População no último censo - pessoas [2022]`,
+      breaks = c(
+        0,
+        1000,
+        25000,
+        50000,
+        100000,
+        500000,
+        1000000,
+        Inf
+      ),
+      labels = c(
+        "Até 10 mil",
+        "10 a 25 mil",
+        "25 a 50 mil",
+        "50 a 100 mil",
+        "100 a 500 mil",
+        "500 a 1 milhão",
+        "Acima de 1 milhão"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_populacao <- ggplot(mapa_populacao) +
+ geom_sf(
+    aes(
+      fill = faixa_populacao,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>População: ",
+        format(
+          `População no último censo - pessoas [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          scientific = FALSE
+        )
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "População"
+  ) +
+  labs(
+    title = "Distribuição da População dos Municípios de Minas Gerais",
+    subtitle = "População residente segundo o Censo de 2022"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_populacao,
+  tooltip = "text"
+)
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mg_municipios <- read_municipality(
+  code_muni = "MG",
+  year = 2020
+)
+
+dados_mapa <- dados %>%
+  mutate(
+    nome_padronizado = stri_trans_general(`Município [-]`, "Latin-ASCII") %>%
+      toupper()
+  )
+
+mg_municipios <- mg_municipios %>%
+  mutate(
+    nome_padronizado = stri_trans_general(name_muni, "Latin-ASCII") %>%
+      toupper()
+ )
+
+mapa_populacao <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_populacao = cut(
+      `População no último censo - pessoas [2022]`,
+      breaks = c(
+        0,
+        1000,
+        25000,
+        50000,
+        100000,
+        500000,
+        1000000,
+        Inf
+      ),
+      labels = c(
+        "Até 10 mil",
+        "10 a 25 mil",
+        "25 a 50 mil",
+        "50 a 100 mil",
+        "100 a 500 mil",
+        "500 a 1 milhão",
+        "Acima de 1 milhão"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_populacao <- ggplot(mapa_populacao) +
+ geom_sf(
+    aes(
+      fill = faixa_populacao,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>População: ",
+        format(
+          `População no último censo - pessoas [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          scientific = FALSE
+        )
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "População"
+  ) +
+  labs(
+    title = "Distribuição da População dos Municípios de Minas Gerais",
+    subtitle = "População residente segundo o Censo de 2022"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_populacao,
+  tooltip = "text"
+)
+```
+:::
+
+### Área territorial
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_area <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_area = cut(
+      `Área Territorial - km² [2025]`,
+      breaks = c(
+        0,
+        100,
+        250,
+        500,
+        1000,
+        2500,
+        5000,
+        Inf
+      ),
+      labels = c(
+        "Até 100",
+        "100 a 250",
+        "250 a 500",
+        "500 a 1.000",
+        "1.000 a 2.500",
+        "2.500 a 5.000",
+        "Acima de 5.000"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_area <- ggplot(mapa_area) +
+  geom_sf(
+    aes(
+      fill = faixa_area,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Área territorial: ",
+        format(
+          `Área Territorial - km² [2025]`,
+          big.mark = "",
+          decimal.mark = ",",
+          nsmall = 3,
+          scientific = FALSE
+        ),
+        " km²"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Área"
+  ) +
+  labs(
+    title = "Distribuição da Área Territorial\ndos Municípios de Minas Gerais",
+    subtitle = "Área territorial em quilômetros quadrados (km²)",
+    fill = "Área"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", lineheight = 0.95),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "right",
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+ggplotly(
+  grafico_area,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_area <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_area = cut(
+      `Área Territorial - km² [2025]`,
+      breaks = c(
+        0,
+        100,
+        250,
+        500,
+        1000,
+        2500,
+        5000,
+        Inf
+      ),
+      labels = c(
+        "Até 100",
+        "100 a 250",
+        "250 a 500",
+        "500 a 1.000",
+        "1.000 a 2.500",
+        "2.500 a 5.000",
+        "Acima de 5.000"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_area <- ggplot(mapa_area) +
+  geom_sf(
+    aes(
+      fill = faixa_area,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Área territorial: ",
+        format(
+          `Área Territorial - km² [2025]`,
+          big.mark = "",
+          decimal.mark = ",",
+          nsmall = 3,
+          scientific = FALSE
+        ),
+        " km²"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Área"
+  ) +
+  labs(
+    title = "Distribuição da Área Territorial\ndos Municípios de Minas Gerais",
+    subtitle = "Área territorial em quilômetros quadrados (km²)",
+    fill = "Área"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", lineheight = 0.95),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "right",
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+ggplotly(
+  grafico_area,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+
+### Densidade Demográfica
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_densidade <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_densidade = cut(
+      `Densidade demográfica - hab/km² [2022]`,
+      breaks = c(
+        0,
+        10,
+        25,
+        50,
+        100,
+        500,
+        1000,
+        Inf
+      ),
+      labels = c(
+        "Até 10",
+        "10 a 25",
+        "25 a 50",
+        "50 a 100",
+        "100 a 500",
+        "500 a 1.000",
+        "Acima de 1.000"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_densidade <- ggplot(mapa_densidade) +
+  geom_sf(
+    aes(
+      fill = faixa_densidade,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Densidade: ",
+        format(
+          `Densidade demográfica - hab/km² [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          scientific = FALSE
+        ),
+        " hab/km²"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Densidade"
+  ) +
+  labs(
+    title = "Distribuição da Densidade Demográfica dos Municípios de Minas Gerais",
+    subtitle = "Habitantes por km² segundo o Censo de 2022"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_densidade,
+  tooltip = "text"
+)
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_densidade <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_densidade = cut(
+      `Densidade demográfica - hab/km² [2022]`,
+      breaks = c(
+        0,
+        10,
+        25,
+        50,
+        100,
+        500,
+        1000,
+        Inf
+      ),
+      labels = c(
+        "Até 10",
+        "10 a 25",
+        "25 a 50",
+        "50 a 100",
+        "100 a 500",
+        "500 a 1.000",
+        "Acima de 1.000"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_densidade <- ggplot(mapa_densidade) +
+  geom_sf(
+    aes(
+      fill = faixa_densidade,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Densidade: ",
+        format(
+          `Densidade demográfica - hab/km² [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          scientific = FALSE
+        ),
+        " hab/km²"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Densidade"
+  ) +
+  labs(
+    title = "Distribuição da Densidade Demográfica dos Municípios de Minas Gerais",
+    subtitle = "Habitantes por km² segundo o Censo de 2022"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    plot.subtitle = element_text(size = 11),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_densidade,
+  tooltip = "text"
+)
+```
+:::
+::::::
+
+A análise espacial dos indicadores demográficos evidencia que a
+população mineira não se distribui de forma homogênea pelo território. O
+mapa de população mostra concentração mais intensa em alguns polos
+urbanos, especialmente na Região Metropolitana de Belo Horizonte, no
+Triângulo Mineiro e em municípios que exercem papel regional importante.
+
+A densidade demográfica reforça essa leitura: os municípios mais densos
+aparecem principalmente em áreas urbanizadas, enquanto regiões com
+grande extensão territorial tendem a apresentar menor concentração de
+habitantes por km². Já o mapa de área territorial mostra um padrão
+diferente, com municípios maiores concentrados principalmente no Norte e
+Noroeste de Minas Gerais.
+
+Em conjunto, os mapas indicam que municípios territorialmente grandes
+não são necessariamente os mais populosos ou densos. Isso reforça a
+diferença entre extensão territorial, volume populacional e concentração
+urbana.
+
+## Indicadores sociais
+
+:::::: panel-tabset
+### Escolarização (6 a 14 anos)
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_escolarizacao <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_escolarizacao = cut(
+      `Escolarização <span>6 a 14 anos</span> - % [2022]`,
+      breaks = c(
+        0,
+        90,
+        95,
+        97,
+        98,
+        99,
+        99.9,
+        100
+      ),
+      labels = c(
+        "Até 90%",
+        "90% a 95%",
+        "95% a 97%",
+        "97% a 98%",
+        "98% a 99%",
+        "99% a 99,9%",
+        "100%"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_escolarizacao <- ggplot(mapa_escolarizacao) +
+  geom_sf(
+    aes(
+      fill = faixa_escolarizacao,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Escolarização: ",
+        format(
+          `Escolarização <span>6 a 14 anos</span> - % [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          nsmall = 2,
+          scientific = FALSE
+        ),
+        "%"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Escolarização"
+  ) +
+  labs(
+    title = "Distribuição da Escolarização dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_escolarizacao,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_escolarizacao <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_escolarizacao = cut(
+      `Escolarização <span>6 a 14 anos</span> - % [2022]`,
+      breaks = c(
+        0,
+        90,
+        95,
+        97,
+        98,
+        99,
+        99.9,
+        100
+      ),
+      labels = c(
+        "Até 90%",
+        "90% a 95%",
+        "95% a 97%",
+        "97% a 98%",
+        "98% a 99%",
+        "99% a 99,9%",
+        "100%"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_escolarizacao <- ggplot(mapa_escolarizacao) +
+  geom_sf(
+    aes(
+      fill = faixa_escolarizacao,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Escolarização: ",
+        format(
+          `Escolarização <span>6 a 14 anos</span> - % [2022]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          nsmall = 2,
+          scientific = FALSE
+        ),
+        "%"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Escolarização"
+  ) +
+  labs(
+    title = "Distribuição da Escolarização dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_escolarizacao,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+
+### IDHM
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_idhm <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_idhm = cut(
+      `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+      breaks = c(
+        0,
+        0.55,
+        0.60,
+        0.65,
+        0.70,
+        0.75,
+        0.80,
+        1
+      ),
+      labels = c(
+        "Até 0,55",
+        "0,55 a 0,60",
+        "0,60 a 0,65",
+        "0,65 a 0,70",
+        "0,70 a 0,75",
+        "0,75 a 0,80",
+        "Acima de 0,80"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_idhm <- ggplot(mapa_idhm) +
+  geom_sf(
+    aes(
+      fill = faixa_idhm,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>IDHM: ",
+        format(
+          `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+          decimal.mark = ",",
+          nsmall = 3,
+          scientific = FALSE
+        )
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "IDHM"
+  ) +
+  labs(
+    title = "Distribuição do IDHM dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_idhm,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_idhm <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_idhm = cut(
+      `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+      breaks = c(
+        0,
+        0.55,
+        0.60,
+        0.65,
+        0.70,
+        0.75,
+        0.80,
+        1
+      ),
+      labels = c(
+        "Até 0,55",
+        "0,55 a 0,60",
+        "0,60 a 0,65",
+        "0,65 a 0,70",
+        "0,70 a 0,75",
+        "0,75 a 0,80",
+        "Acima de 0,80"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_idhm <- ggplot(mapa_idhm) +
+  geom_sf(
+    aes(
+      fill = faixa_idhm,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>IDHM: ",
+        format(
+          `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+          decimal.mark = ",",
+          nsmall = 3,
+          scientific = FALSE
+        )
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "IDHM"
+  ) +
+  labs(
+    title = "Distribuição do IDHM dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_idhm,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+
+### Mortalidade Infantil
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_mortalidade <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_mortalidade = cut(
+      `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`,
+      breaks = c(
+        0,
+        5,
+        10,
+        15,
+        20,
+        30,
+        50,
+        Inf
+      ),
+      labels = c(
+        "Até 5",
+        "5 a 10",
+        "10 a 15",
+        "15 a 20",
+        "20 a 30",
+        "30 a 50",
+        "Acima de 50"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_mortalidade <- ggplot(mapa_mortalidade) +
+  geom_sf(
+    aes(
+      fill = faixa_mortalidade,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Mortalidade infantil: ",
+        format(
+          `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          nsmall = 2,
+          scientific = FALSE
+        ),
+        " óbitos por mil nascidos vivos"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Mortalidade"
+  ) +
+  labs(
+    title = "Distribuição da Mortalidade Infantil dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_mortalidade,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_mortalidade <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_mortalidade = cut(
+      `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`,
+      breaks = c(
+        0,
+        5,
+        10,
+        15,
+        20,
+        30,
+        50,
+        Inf
+      ),
+      labels = c(
+        "Até 5",
+        "5 a 10",
+        "10 a 15",
+        "15 a 20",
+        "20 a 30",
+        "30 a 50",
+        "Acima de 50"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_mortalidade <- ggplot(mapa_mortalidade) +
+  geom_sf(
+    aes(
+      fill = faixa_mortalidade,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Mortalidade infantil: ",
+        format(
+          `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`,
+          big.mark = ".",
+          decimal.mark = ",",
+          nsmall = 2,
+          scientific = FALSE
+        ),
+        " óbitos por mil nascidos vivos"
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Mortalidade"
+  ) +
+  labs(
+    title = "Distribuição da Mortalidade Infantil dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_mortalidade,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+::::::
+
+A análise espacial dos indicadores sociais revela que os municípios
+mineiros apresentam comportamentos distintos conforme a variável
+observada. Enquanto a escolarização mostra uma distribuição bastante
+homogênea em praticamente todo o território, os indicadores de
+desenvolvimento humano e mortalidade infantil evidenciam contrastes
+regionais mais perceptíveis.
+
+O mapa de Escolarização (6 a 14 anos) confirma os resultados obtidos
+anteriormente nas análises estatísticas. A maior parte dos municípios
+encontra-se concentrada nas faixas mais elevadas do indicador,
+especialmente entre 98% e 100% de escolarização. Essa distribuição
+reforça o baixo coeficiente de variação observado (1,37%), indicando que
+o acesso à educação básica é relativamente uniforme em Minas Gerais,
+independentemente da localização geográfica dos municípios.
+
+Já o IDHM apresenta uma distribuição espacial mais heterogênea.
+Observa-se uma maior concentração de municípios com índices elevados nas
+regiões Sul, Centro-Sul e Metropolitana de Belo Horizonte, enquanto
+parte do Norte e do Nordeste mineiro apresenta predominância de faixas
+intermediárias de desenvolvimento humano. Esse padrão é coerente com as
+diferenças históricas de renda, infraestrutura, urbanização e oferta de
+serviços públicos observadas entre as regiões do estado.
+
+A Mortalidade Infantil exibe um comportamento mais disperso e irregular.
+Diferentemente dos demais indicadores, não é possível identificar
+grandes agrupamentos geográficos contínuos de municípios com taxas
+elevadas ou reduzidas. Além disso, a presença de uma quantidade
+significativa de registros sem informação dificulta a identificação de
+padrões espaciais mais consistentes. Ainda assim, observa-se que os
+municípios com menores taxas de mortalidade infantil tendem a estar
+distribuídos por diversas regiões do estado, sugerindo que fatores
+locais relacionados à qualidade dos serviços de saúde e às condições
+socioeconômicas podem exercer influência mais relevante do que a
+localização geográfica em si.
+
+De forma geral, os mapas indicam que os indicadores educacionais
+apresentam elevada uniformidade, enquanto os indicadores de
+desenvolvimento humano e saúde revelam desigualdades regionais mais
+perceptíveis. Esses resultados complementam as análises estatísticas
+realizadas anteriormente, permitindo visualizar como as diferenças
+sociais se distribuem espacialmente dentro do território mineiro.
+
+## Indicadores Econômicos
+
+:::::: panel-tabset
+### Receita Municipais
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_receita <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_receita = cut(
+      `Total de receitas brutas realizadas - R$ [2024]`,
+      breaks = c(
+        0,
+        25000000,
+        50000000,
+        100000000,
+        250000000,
+        500000000,
+        1000000000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 25 mi",
+        "R$ 25 a 50 mi",
+        "R$ 50 a 100 mi",
+        "R$ 100 a 250 mi",
+        "R$ 250 a 500 mi",
+        "R$ 500 mi a 1 bi",
+        "Acima de R$ 1 bi"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_receita <- ggplot(mapa_receita) +
+  geom_sf(
+    aes(
+      fill = faixa_receita,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Receita: ",
+        formatar_moeda(`Total de receitas brutas realizadas - R$ [2024]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Receita"
+  ) +
+  labs(
+    title = "Distribuição das Receitas Municipais de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_receita,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_receita <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_receita = cut(
+      `Total de receitas brutas realizadas - R$ [2024]`,
+      breaks = c(
+        0,
+        25000000,
+        50000000,
+        100000000,
+        250000000,
+        500000000,
+        1000000000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 25 mi",
+        "R$ 25 a 50 mi",
+        "R$ 50 a 100 mi",
+        "R$ 100 a 250 mi",
+        "R$ 250 a 500 mi",
+        "R$ 500 mi a 1 bi",
+        "Acima de R$ 1 bi"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_receita <- ggplot(mapa_receita) +
+  geom_sf(
+    aes(
+      fill = faixa_receita,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Receita: ",
+        formatar_moeda(`Total de receitas brutas realizadas - R$ [2024]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Receita"
+  ) +
+  labs(
+    title = "Distribuição das Receitas Municipais de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_receita,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+
+### Despesas Municipais
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_despesa <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_despesa = cut(
+      `Total de despesas brutas empenhadas - R$ [2024]`,
+      breaks = c(
+        0,
+        25000000,
+        50000000,
+        100000000,
+        250000000,
+        500000000,
+        1000000000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 25 mi",
+        "R$ 25 a 50 mi",
+        "R$ 50 a 100 mi",
+        "R$ 100 a 250 mi",
+        "R$ 250 a 500 mi",
+        "R$ 500 mi a 1 bi",
+        "Acima de R$ 1 bi"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_despesa <- ggplot(mapa_despesa) +
+  geom_sf(
+    aes(
+      fill = faixa_despesa,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Despesa: ",
+        formatar_moeda(`Total de despesas brutas empenhadas - R$ [2024]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Despesa"
+  ) +
+  labs(
+    title = "Distribuição das Despesas Municipais de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_despesa,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_despesa <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_despesa = cut(
+      `Total de despesas brutas empenhadas - R$ [2024]`,
+      breaks = c(
+        0,
+        25000000,
+        50000000,
+        100000000,
+        250000000,
+        500000000,
+        1000000000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 25 mi",
+        "R$ 25 a 50 mi",
+        "R$ 50 a 100 mi",
+        "R$ 100 a 250 mi",
+        "R$ 250 a 500 mi",
+        "R$ 500 mi a 1 bi",
+        "Acima de R$ 1 bi"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_despesa <- ggplot(mapa_despesa) +
+  geom_sf(
+    aes(
+      fill = faixa_despesa,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>Despesa: ",
+        formatar_moeda(`Total de despesas brutas empenhadas - R$ [2024]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "Despesa"
+  ) +
+  labs(
+    title = "Distribuição das Despesas Municipais de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_despesa,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+
+### PIB per capita
+
+```{r, echo = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_pib <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_pib = cut(
+      `PIB per capita - R$ [2023]`,
+      breaks = c(
+        0,
+        15000,
+        25000,
+        40000,
+        60000,
+        100000,
+        150000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 15 mil",
+        "R$ 15 a 25 mil",
+        "R$ 25 a 40 mil",
+        "R$ 40 a 60 mil",
+        "R$ 60 a 100 mil",
+        "R$ 100 a 150 mil",
+        "Acima de R$ 150 mil"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_pib <- ggplot(mapa_pib) +
+  geom_sf(
+    aes(
+      fill = faixa_pib,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>PIB per capita: ",
+        formatar_moeda(`PIB per capita - R$ [2023]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "PIB per capita"
+  ) +
+  labs(
+    title = "Distribuição do PIB per capita dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_pib,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 11
+#| fig-height: 7
+
+mapa_pib <- mg_municipios %>%
+  left_join(
+    dados_mapa,
+    by = "nome_padronizado"
+  ) %>%
+  mutate(
+    faixa_pib = cut(
+      `PIB per capita - R$ [2023]`,
+      breaks = c(
+        0,
+        15000,
+        25000,
+        40000,
+        60000,
+        100000,
+        150000,
+        Inf
+      ),
+      labels = c(
+        "Até R$ 15 mil",
+        "R$ 15 a 25 mil",
+        "R$ 25 a 40 mil",
+        "R$ 40 a 60 mil",
+        "R$ 60 a 100 mil",
+        "R$ 100 a 150 mil",
+        "Acima de R$ 150 mil"
+      ),
+      include.lowest = TRUE
+    )
+  )
+
+grafico_pib <- ggplot(mapa_pib) +
+  geom_sf(
+    aes(
+      fill = faixa_pib,
+      text = paste0(
+        "Município: ", name_muni,
+        "<br>PIB per capita: ",
+        formatar_moeda(`PIB per capita - R$ [2023]`)
+      )
+    ),
+    color = "white",
+    linewidth = 0.04
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#F7FBFF",
+      "#DEEBF7",
+      "#C6DBEF",
+      "#9ECAE1",
+      "#6BAED6",
+      "#2171B5",
+      "#08306B"
+    ),
+    name = "PIB per capita"
+  ) +
+  labs(
+    title = "Distribuição do PIB per capita dos Municípios de Minas Gerais"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    legend.position = "right"
+  )
+
+ggplotly(
+  grafico_pib,
+  tooltip = "text"
+) %>%
+  config(
+    displayModeBar = "hover"
+  )
+```
+:::
+::::::
+
+Os mapas dos indicadores econômicos evidenciam a forte concentração de
+recursos financeiros e atividade econômica em uma parcela relativamente
+pequena dos municípios mineiros. Os padrões espaciais observados
+reforçam os resultados encontrados nas análises estatísticas e nas
+correlações realizadas anteriormente.
+
+Os mapas de Receitas Municipais e Despesas Municipais apresentam
+distribuições praticamente idênticas, resultado esperado diante da
+correlação extremamente forte identificada entre essas variáveis (r =
+0,9952). Os municípios que concentram maiores volumes de arrecadação
+também tendem a registrar maiores volumes de gastos públicos, formando
+polos econômicos claramente destacados no território estadual. Em
+contrapartida, a maior parte dos municípios encontra-se nas faixas
+inferiores de arrecadação e despesa, refletindo estruturas econômicas e
+administrativas de menor porte.
+
+Observa-se ainda que os maiores volumes financeiros tendem a se
+concentrar em regiões mais urbanizadas e economicamente dinâmicas do
+estado, especialmente próximas aos grandes centros urbanos e aos
+principais eixos de desenvolvimento econômico. Esse comportamento é
+compatível com a elevada assimetria observada nas distribuições de
+receita e despesa, nas quais poucos municípios concentram grande parte
+dos recursos movimentados.
+
+O mapa de PIB per capita revela um padrão distinto. Diferentemente das
+receitas e despesas, os municípios com maiores valores de PIB por
+habitante não estão necessariamente associados aos maiores centros
+populacionais. Algumas localidades de médio ou pequeno porte destacam-se
+por apresentarem elevada geração de riqueza em relação ao número de
+habitantes, formando núcleos isolados de alta produtividade econômica
+distribuídos pelo território mineiro.
+
+Esse comportamento reforça uma das conclusões obtidas anteriormente na
+análise de correlação entre IDHM e PIB per capita: embora municípios
+economicamente mais produtivos tendam a apresentar melhores indicadores
+de desenvolvimento humano, a distribuição da riqueza não ocorre de forma
+uniforme no estado. A presença de municípios com PIB per capita elevado
+em regiões específicas sugere a influência de atividades econômicas
+altamente especializadas, como mineração, agronegócio de alta
+produtividade, indústria de transformação e geração de energia.
+
+De forma geral, os mapas mostram que a economia mineira apresenta dois
+padrões complementares. De um lado, as receitas e despesas municipais
+refletem a concentração administrativa e financeira nos grandes centros
+urbanos. De outro, o PIB per capita evidencia que a geração de riqueza
+por habitante pode ocorrer também em municípios menores, desde que
+exista uma atividade econômica capaz de produzir elevado valor agregado.
+Esses resultados ajudam a compreender as desigualdades econômicas
+observadas no estado e complementam as análises estatísticas realizadas
+ao longo do trabalho.
+
+# Heatmap de correlação das variáveis
+
+O heatmap de correlação é uma ferramenta visual utilizada para analisar
+a intensidade e a direção das relações lineares entre as variáveis
+numéricas da base de dados. Por meio do coeficiente de correlação de
+Pearson, os valores variam entre -1 e 1, indicando desde correlações
+negativas perfeitas até correlações positivas perfeitas. Nesse gráfico,
+tons mais escuros representam correlações mais fortes, enquanto tons
+mais claros indicam relações mais fracas ou inexistentes. A análise
+conjunta dessas correlações permite identificar padrões, associações
+relevantes e possíveis redundâncias entre as variáveis estudadas.
+
+```{r, echo = FALSE}
+#| fig-width: 9
+#| fig-height: 7
+
+
+# Seleciona apenas colunas numéricas
+dados_numericos <- dados %>%
+  select(where(is.numeric))
+
+colnames(dados_numericos) <- c(
+  "Area",
+  "Pop2022",
+  "Densidade",
+  "Pop2025",
+  "Escolarizacao",
+  "IDHM",
+  "Mortalidade",
+  "Receitas",
+  "Despesas",
+  "PIB"
+)
+
+matriz_correlacao <- cor(
+  dados_numericos,
+  use = "pairwise.complete.obs"
+)
+
+ggcorrplot(
+  matriz_correlacao,
+  hc.order = TRUE,
+  type = "upper",
+  lab = TRUE,
+  lab_size = 3,
+  outline.color = "white",
+  colors = c(
+    "#DCEAF7",  # correlação fraca
+    "#7FAFD4",  # média
+    "#2F6690"   # forte
+  )
+)
+```
+
+::: {.callout-note collapse="true"}
+## Ver fórmulas utilizadas
+
+```{r, eval = FALSE}
+#| fig-width: 9
+#| fig-height: 7
+
+
+# Seleciona apenas colunas numéricas
+dados_numericos <- dados %>%
+  select(where(is.numeric))
+
+# Renomeia os campos para melhor leitura
+colnames(dados_numericos) <- c(
+  "Area",
+  "Pop2022",
+  "Densidade",
+  "Pop2025",
+  "Escolarizacao",
+  "IDHM",
+  "Mortalidade",
+  "Receitas",
+  "Despesas",
+  "PIB"
+)
+
+# Cria matriz de correlação com os valores numéricos
+matriz_correlacao <- cor(
+  dados_numericos,
+  use = "pairwise.complete.obs"
+)
+
+# Cria o heatmap de correlação
+ggcorrplot(
+  matriz_correlacao,
+  hc.order = TRUE,
+  type = "upper",
+  lab = TRUE,
+  lab_size = 3,
+  outline.color = "white",
+  colors = c(
+    "#DCEAF7",  # correlação fraca
+    "#7FAFD4",  # média
+    "#2F6690"   # forte
+  )
+)
+```
+:::
+
+A matriz de correlação evidencia que as relações mais fortes observadas
+estão associadas às variáveis populacionais e financeiras dos
+municípios. Destaca-se a correlação praticamente perfeita entre a
+***população do censo de 2022*** e a ***população estimada para 2025
+(cor = 1,00)***, resultado esperado por se tratar de uma projeção
+baseada na população já observada.
+
+Também foram identificadas correlações muito fortes entre as variáveis
+financeiras. As ***receitas*** e ***despesas*** municipais apresentam
+correlação perfeita ***(cor = 1,00)***, indicando que municípios com
+maior arrecadação tendem a registrar também maiores volumes de gastos
+públicos. Da mesma forma, observa-se forte associação entre
+***população*** e ***indicadores financeiros***, com correlações de
+***0,87 a 0,91*** entre população, receitas e despesas, sugerindo que
+*municípios mais populosos geralmente possuem maior movimentação
+econômica e orçamentária*.
+
+A ***densidade demográfica*** apresentou correlação forte com as
+***variáveis populacionais (cor = 0,83)***, indicando que *municípios
+mais populosos tendem a apresentar maiores concentrações populacionais*
+em seu território. Por outro lado, as correlações entre ***densidade
+demográfica*** e indicadores de desenvolvimento, como o ***IDHM (cor =
+0,23)*** e o ***PIB per capita (cor = 0,06)***, mostraram-se fracas,
+sugerindo que a *concentração populacional não está diretamente
+associada ao nível de desenvolvimento humano ou à riqueza média
+produzida por habitante*.
+
+As variáveis de ***escolarização*** e ***mortalidade infantil***
+apresentaram correlações muito baixas com a maior parte dos demais
+indicadores analisados, indicando relações lineares pouco expressivas
+dentro da base estudada. Além disso, não foram observadas correlações
+negativas relevantes, uma vez que os coeficientes negativos encontrados
+possuem magnitude reduzida e se aproximam de zero.
+
+De forma geral, o heatmap revela que os ***fatores demográficos*** e
+***financeiros*** são os grupos de variáveis mais fortemente
+relacionados entre si, enquanto os indicadores ***sociais*** e de
+***desenvolvimento humano*** apresentam associações mais moderadas ou
+fracas. Esses resultados contribuem para compreender quais
+características dos municípios mineiros tendem a evoluir de maneira
+conjunta e quais variáveis apresentam comportamento mais independente
+dentro do conjunto de dados analisado.
+
+# Associação entre Variáveis
+
+## Receita x Despesa
+
+### Objetivo
+
+Investigar se municípios com maior capacidade de arrecadação também
+apresentam maiores volumes de despesas públicas, identificando a
+intensidade da associação entre receitas e gastos municipais.
+
+### Correlação
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+correlacao1 <- cor(
+  dados$`Total de receitas brutas realizadas - R$ [2024]`, 
+  dados$`Total de despesas brutas empenhadas - R$ [2024]`, 
+  method = "pearson"
+)
+```
+:::
+
+::: callout-tip
+#### Resultado
+
+**Coeficiente de Correlação de Pearson:** `r round(correlacao1,4)`
+
+**Classificação:** Correlação positiva
+
+**Intensidade:** Associação muito forte, quase perfeitamente
+correlacionados
+:::
+
+### Gráfico de dispersão
+
+```{r, echo = FALSE}
+ggplot(
+  dados,
+  aes(
+    x = `Total de receitas brutas realizadas - R$ [2024]`,
+    y = `Total de despesas brutas empenhadas - R$ [2024]`
+  )
+) +
+  geom_point(
+    color = "steelblue",
+    alpha = 0.6
+  ) +
+  geom_smooth(
+    method = "lm",
+    color = "darkorange2",
+    se = TRUE
+  ) +
+  scale_x_log10(
+    labels = formatar_abreviado
+  ) +
+  scale_y_log10(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "Receitas x Despesas Municipais",
+    subtitle = "Escala logarítmica",
+    x = "Receitas",
+    y = "Despesas"
+  ) +
+  theme_minimal()
+```
+
+### Interpretação Estatística
+
+O coeficiente de correlação de Pearson de 0,9952 indica uma associação
+linear positiva extremamente forte entre receitas e despesas municipais.
+O valor encontra-se muito próximo de 1, o que significa que as duas
+variáveis apresentam comportamento praticamente proporcional ao longo da
+amostra.
+
+O gráfico de dispersão reforça esse resultado ao revelar que os
+municípios se distribuem próximos de uma reta crescente, evidenciando
+que aumentos na arrecadação costumam ser acompanhados por aumentos de
+magnitude semelhante nos gastos públicos.
+
+Embora existam alguns municípios de grande porte que se destacam em
+relação aos demais, a associação permanece consistente mesmo entre
+cidades pequenas e médias, justificando o elevado coeficiente observado.
+
+### Interpretação do contexto
+
+Do ponto de vista econômico e administrativo, essa relação é esperada.
+Os municípios financiam grande parte de suas despesas por meio das
+receitas arrecadadas diretamente ou recebidas através de transferências
+estaduais e federais.
+
+Assim, municípios com maior população, atividade econômica mais intensa
+e maior arrecadação tributária tendem a possuir estruturas
+administrativas mais complexas, demandando maiores investimentos em
+saúde, educação, infraestrutura urbana e serviços públicos.
+
+A correlação observada sugere que o volume de gastos municipais cresce
+de forma proporcional à capacidade financeira de cada município,
+evidenciando uma forte dependência entre arrecadação e execução
+orçamentária.
+
+## População (Censo 2022) x Receitas
+
+### Objetivo
+
+Investigar a relação entre o tamanho da população municipal e o volume
+de receitas arrecadadas. Busca-se verificar se municípios mais populosos
+tendem a apresentar maiores receitas públicas
+
+### Correlação
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+
+correlacao2 <- cor(dados$`População no último censo - pessoas [2022]`,
+        dados$`Total de receitas brutas realizadas - R$ [2024]`,
+        method = "pearson")
+```
+:::
+
+::: callout-tip
+#### Resultado
+
+**Coeficiente de Correlação de Pearson:** `r round(correlacao2,4)`
+
+**Classificação:** Correlação positiva
+
+**Intensidade:** Associação muito forte entre as variáveis
+:::
+
+### Gráfico de dispersão
+
+```{r, echo = FALSE}
+ggplot(
+  dados,
+  aes(
+    x = `População no último censo - pessoas [2022]`,
+    y = `Total de receitas brutas realizadas - R$ [2024]`
+  )
+) +
+  geom_point(
+    color = "steelblue",
+    alpha = 0.6
+  ) +
+  geom_smooth(
+    method = "lm",
+    color = "darkorange2",
+    se = TRUE
+  ) +
+  scale_x_log10(
+    labels = formatar_abreviado
+  ) +
+  scale_y_log10(
+    labels = formatar_moeda_abreviada
+  ) +
+  labs(
+    title = "População 2022 x Receita",
+    subtitle = "Escala logarítmica",
+    x = "População (Censo 2022)",
+    y = "Receita"
+  ) +
+  theme_minimal()
+```
+
+### Interpretação Estatística
+
+O coeficiente de correlação de Pearson de `r round(correlacao2, 4)`
+indica uma associação positiva muito forte entre a população dos
+municípios e suas receitas públicas. Isso significa que, de forma geral,
+municípios com maior número de habitantes tendem a arrecadar mais
+recursos financeiros.
+
+O gráfico de dispersão evidencia uma tendência crescente bem definida,
+demonstrando que o aumento da população costuma ser acompanhado por
+aumentos na arrecadação municipal. Apesar dessa forte associação,
+observa-se uma dispersão maior dos pontos quando comparada à relação
+entre receitas e despesas, indicando que municípios com populações
+semelhantes podem apresentar volumes de arrecadação distintos.
+
+Essa variabilidade sugere que a população, embora seja um fator
+importante para explicar a arrecadação municipal, não é o único elemento
+envolvido. Aspectos econômicos, produtivos e tributários também
+influenciam significativamente o comportamento das receitas.
+
+### Interpretação do contexto
+
+A relação observada é coerente com a estrutura de financiamento dos
+municípios brasileiros. Cidades mais populosas costumam concentrar maior
+atividade econômica, maior quantidade de empresas, maior circulação de
+mercadorias e serviços e maior arrecadação de tributos locais.
+
+Além disso, diversos mecanismos de transferência de recursos estaduais e
+federais consideram critérios populacionais para a distribuição de
+verbas públicas. Dessa forma, municípios com mais habitantes
+frequentemente recebem maiores repasses governamentais, contribuindo
+para o aumento de suas receitas totais.
+
+Entretanto, a correlação não é perfeita porque municípios com populações
+semelhantes podem apresentar níveis distintos de desenvolvimento
+econômico. Algumas cidades conseguem arrecadar valores muito superiores
+devido à presença de atividades industriais, comerciais, agrícolas ou
+mineradoras relevantes, enquanto outras dependem mais intensamente de
+transferências governamentais.
+
+Os resultados indicam que o tamanho da população exerce forte influência
+sobre a arrecadação municipal, mas que fatores econômicos locais também
+desempenham papel importante na determinação do volume de receitas.
+
+## IDHM x PIB per capita
+
+### Objetivo
+
+Investigar a relação entre o nível de desenvolvimento humano dos
+municípios e a riqueza média produzida por habitante. Busca-se verificar
+se municípios com maiores valores de PIB per capita tendem a apresentar
+melhores indicadores de desenvolvimento humano.
+
+### Correlação
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+
+correlacao3 <- cor(dados$`IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`, 
+         dados$`PIB per capita - R$ [2023]`, 
+         method = "spearman")
+```
+:::
+
+::: callout-tip
+#### Resultado
+
+**Coeficiente de Correlação de Pearson:** `r round(correlacao3,4)`
+
+**Classificação:** Correlação positiva
+
+**Intensidade:** Associação forte entre as variáveis
+:::
+
+### Gráfico de dispersão
+
+```{r, echo = FALSE}
+ggplot(
+  dados,
+  aes(
+    x = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+    y = `PIB per capita - R$ [2023]`
+  )
+) +
+  geom_point(
+    color = "steelblue",
+    alpha = 0.6
+  ) +
+  geom_smooth(
+    method = "lm",
+    color = "darkorange2",
+    se = TRUE
+  ) +
+  scale_x_continuous(
+    labels = formatar_abreviado
+  ) +
+  scale_y_continuous(
+    labels = formatar_abreviado
+  ) +
+  labs(
+    title = "IDHM x PIB per capita",
+    subtitle = "Escala contínua",
+    x = "IDHM",
+    y = "PIB per capita"
+  ) +
+  theme_minimal()
+```
+
+### Interpretação Estatística
+
+O coeficiente de correlação de Pearson de `r round(correlacao3, 4)`
+indica uma associação positiva forte entre o IDHM e o PIB per capita dos
+municípios mineiros. Isso significa que, em geral, municípios com maior
+riqueza produzida por habitante tendem a apresentar melhores índices de
+desenvolvimento humano.
+
+O gráfico de dispersão confirma essa tendência ao mostrar uma
+concentração de pontos que acompanha uma direção crescente. Entretanto,
+observa-se uma dispersão considerável entre os municípios, indicando que
+valores semelhantes de PIB per capita podem estar associados a
+diferentes níveis de IDHM.
+
+Dessa forma, embora exista uma relação clara entre as variáveis, ela não
+é perfeita. Isso sugere que outros fatores além da riqueza produzida por
+habitante também influenciam o desenvolvimento humano dos municípios.
+
+### Interpretação do contexto
+
+A associação observada é coerente com o conceito de desenvolvimento
+humano. Municípios economicamente mais produtivos costumam possuir maior
+disponibilidade de recursos para investimentos em educação, saúde,
+infraestrutura e qualidade dos serviços públicos, fatores que
+influenciam diretamente o IDHM.
+
+Entretanto, a riqueza econômica não garante, por si só, elevados níveis
+de desenvolvimento humano. Alguns municípios podem apresentar PIB per
+capita elevado devido à presença de atividades econômicas específicas,
+como mineração ou grandes indústrias, sem que essa riqueza beneficie
+toda a população de maneira uniforme.
+
+Por outro lado, também existem municípios que conseguem apresentar bons
+indicadores sociais mesmo sem possuir os maiores PIBs per capita da
+amostra. Isso demonstra que o desenvolvimento humano depende não apenas
+da geração de riqueza, mas também da forma como os recursos são
+distribuídos e transformados em melhorias para a população.
+
+## IDHM x Escolarização
+
+### Objetivo
+
+Investigar a relação entre o percentual de escolarização de crianças de
+6 a 14 anos e o Índice de Desenvolvimento Humano Municipal (IDHM).
+Busca-se verificar se municípios com melhores indicadores de
+desenvolvimento humano tendem a apresentar maiores taxas de
+escolarização.
+
+### Correlação
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+
+correlacao4 <- cor(dados$`IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+        dados$`Escolarização <span>6 a 14 anos</span> - % [2022]`,
+        method = "pearson")
+```
+:::
+
+::: callout-tip
+#### Resultado
+
+**Coeficiente de Correlação de Pearson:** `r round(correlacao4,4)`
+
+**Classificação:** Correlação negativa
+
+**Intensidade:** Associação quase nula entre as variáveis
+:::
+
+### Gráfico de dispersão
+
+```{r, echo = FALSE}
+ggplot(
+  dados,
+  aes(
+    x = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+    y = `Escolarização <span>6 a 14 anos</span> - % [2022]`
+  )
+) +
+  geom_point(
+    color = "steelblue",
+    alpha = 0.6
+  ) +
+  geom_smooth(
+    method = "lm",
+    color = "darkorange2",
+    se = TRUE
+  ) +
+  labs(
+    title = "IDHM x Escolarização %",
+    subtitle = "Escala contínua",
+    x = "IDHM",
+    y = "Escolarização %"
+  ) +
+  theme_minimal()
+```
+
+### Interpretação Estatística
+
+O coeficiente de correlação de Pearson de `r round(correlacao4, 4)`
+indica uma associação linear praticamente inexistente entre o IDHM e a
+taxa de escolarização dos municípios mineiros. Embora o sinal seja
+negativo, sua magnitude é extremamente próxima de zero, não permitindo
+afirmar a existência de uma relação linear relevante entre as variáveis.
+
+O gráfico de dispersão reforça esse resultado ao apresentar uma
+distribuição horizontal dos pontos, sem qualquer tendência visual clara
+de crescimento ou redução da escolarização conforme o IDHM aumenta.
+
+Observa-se ainda que a maioria dos municípios apresenta taxas de
+escolarização muito próximas de 100%, independentemente do nível de
+desenvolvimento humano. Essa baixa variabilidade da escolarização reduz
+significativamente a capacidade de identificar associações estatísticas
+com outras variáveis da base.
+
+Dessa forma, os resultados sugerem que o nível de escolarização de
+crianças entre 6 e 14 anos se mantém elevado em praticamente todos os
+municípios analisados, independentemente das diferenças observadas nos
+indicadores de desenvolvimento humano.
+
+### Interpretação do contexto
+
+À primeira vista, poderia ser esperado que municípios com maior IDHM
+apresentassem maiores taxas de escolarização. Entretanto, os resultados
+indicam que essa relação não é observada na base analisada.
+
+Uma possível explicação é que a escolarização de crianças entre 6 e 14
+anos corresponde ao ensino básico obrigatório no Brasil, sendo
+amplamente atendida pelos municípios independentemente de suas condições
+econômicas ou sociais. Como consequência, a grande maioria das cidades
+já apresenta índices muito elevados de escolarização, próximos do limite
+máximo de 100%.
+
+Além disso, o IDHM é composto por diversos fatores, incluindo renda,
+expectativa de vida e educação. Como a variável de escolarização
+utilizada representa apenas uma parcela específica da dimensão
+educacional, ela não é suficiente para explicar as diferenças observadas
+no desenvolvimento humano dos municípios.
+
+Os resultados sugerem que outros fatores, como renda, qualidade da
+educação, acesso à saúde e condições socioeconômicas da população,
+exercem influência mais significativa sobre o IDHM do que a simples
+presença das crianças na escola.
+
+## IDHM x Mortalidade Infantil
+
+### Objetivo
+
+Investigar a relação entre a mortalidade infantil e o Índice de
+Desenvolvimento Humano Municipal (IDHM), buscando verificar se
+municípios com melhores indicadores de desenvolvimento humano tendem a
+apresentar menores taxas de mortalidade infantil.
+
+### Correlação
+
+::: {.callout-note collapse="true"}
+#### Ver fórmulas utilizadas
+
+```{r}
+
+correlacao5 <- cor(dados$`IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+        dados$`Mortalidade infantil - óbitos por mil nascidos vivos [2023]`,
+        method = "pearson",
+        use = "complete.obs")
+```
+:::
+
+::: callout-tip
+#### Resultado
+
+**Coeficiente de Correlação de Pearson:** `r round(correlacao5,4)`
+
+**Classificação:** Correlação negativa
+
+**Intensidade:** Associação fraca entre as variáveis
+:::
+
+### Gráfico de dispersão
+
+```{r, echo = FALSE}
+ggplot(
+  dados,
+  aes(
+    x = `IDHM <span>Índice de desenvolvimento humano municipal</span> [2010]`,
+    y = `Mortalidade infantil - óbitos por mil nascidos vivos [2023]`
+  )
+) +
+  geom_point(
+    color = "steelblue",
+    alpha = 0.6
+  ) +
+  geom_smooth(
+    method = "lm",
+    color = "darkorange2",
+    se = TRUE
+  ) +
+  labs(
+    title = "IDHM x Mortalidade Infantil",
+    subtitle = "Escala contínua",
+    x = "IDHM",
+    y = "Mortalidade infantil (óbitos por mil nascidos)"
+  ) +
+  theme_minimal()
+```
+
+### Interpretação Estatística
+
+O coeficiente de correlação de Pearson de `r round(correlacao5, 4)`
+indica uma associação negativa fraca entre o IDHM e a mortalidade
+infantil dos municípios mineiros. O sinal negativo sugere que municípios
+com maiores índices de desenvolvimento humano tendem a apresentar
+menores taxas de mortalidade infantil.
+
+O gráfico de dispersão reforça essa tendência ao apresentar uma
+inclinação descendente, indicando que os valores de mortalidade infantil
+tendem a diminuir à medida que o IDHM aumenta. Entretanto, observa-se
+uma dispersão considerável dos pontos ao redor dessa tendência geral,
+evidenciando que municípios com níveis semelhantes de desenvolvimento
+humano podem apresentar taxas de mortalidade infantil bastante
+diferentes.
+
+Dessa forma, embora exista uma relação estatística identificável entre
+as variáveis, sua intensidade é relativamente baixa. Isso sugere que o
+IDHM contribui para explicar parte do comportamento da mortalidade
+infantil, mas não é suficiente para explicar sozinho as diferenças
+observadas entre os municípios.
+
+### Interpretação do contexto
+
+A relação observada é coerente com os conceitos de desenvolvimento
+humano e saúde pública. Municípios que apresentam melhores condições de
+renda, educação e qualidade de vida tendem a oferecer melhores condições
+de acesso à saúde, saneamento básico, vacinação e acompanhamento médico,
+fatores que contribuem diretamente para a redução da mortalidade
+infantil.
+
+Entretanto, a correlação encontrada foi relativamente fraca, indicando
+que a mortalidade infantil depende de diversos fatores além do
+desenvolvimento humano medido pelo IDHM. Aspectos como infraestrutura
+hospitalar, cobertura da atenção básica, políticas públicas de saúde,
+condições de saneamento e vulnerabilidade social podem influenciar
+significativamente esse indicador.
+
+Além disso, a variável de mortalidade infantil apresentou uma quantidade
+expressiva de registros ausentes na base de dados, o que reduz o número
+de municípios considerados no cálculo da correlação e pode limitar
+parcialmente a identificação de padrões mais consistentes.
+
+Os resultados sugerem que municípios com melhores níveis de
+desenvolvimento humano tendem, em média, a apresentar menores taxas de
+mortalidade infantil, mas que essa relação é influenciada por diversos
+fatores adicionais que não estão representados diretamente pelo IDHM.
+
+# Principais Descobertas
+
+A análise exploratória dos 853 municípios de Minas Gerais permitiu
+identificar padrões demográficos, sociais e econômicos relevantes, bem
+como relações estatísticas entre as variáveis estudadas.
+
+## Aspectos demográficos
+
+- A população dos municípios apresenta elevada concentração em poucas
+  cidades de grande porte, enquanto a maioria dos municípios possui
+  menos de 10 mil habitantes.
+- A densidade demográfica apresentou a maior variabilidade observada
+  entre os indicadores demográficos, com coeficiente de variação
+  superior a 450%, evidenciando forte concentração populacional em
+  centros urbanos específicos.
+- Os mapas geográficos mostraram que os maiores contingentes
+  populacionais concentram-se principalmente na Região Metropolitana de
+  Belo Horizonte e em outros polos urbanos relevantes do estado.
+
+## Aspectos sociais
+
+- A escolarização de crianças entre 6 e 14 anos apresentou comportamento
+  altamente homogêneo em todo o estado, com média de 98,99% e
+  coeficiente de variação de apenas 1,37%.
+- O IDHM apresentou distribuição relativamente equilibrada entre os
+  municípios, com baixa dispersão e concentração predominante na faixa
+  de médio desenvolvimento humano.
+- A mortalidade infantil foi o indicador social com maior
+  heterogeneidade, apresentando diferenças significativas entre
+  municípios e uma quantidade expressiva de registros ausentes.
+
+## Aspectos econômicos
+
+- Receitas e despesas municipais apresentaram forte concentração em
+  poucos municípios, refletindo grandes diferenças na capacidade
+  financeira das administrações locais.
+- O PIB per capita mostrou elevada heterogeneidade econômica,
+  evidenciando municípios altamente produtivos convivendo com
+  localidades de menor dinamismo econômico.
+- Os mapas econômicos revelaram padrões espaciais distintos entre
+  arrecadação municipal e geração de riqueza por habitante.
+
+## Correlações
+
+Entre as associações analisadas, destacam-se:
+
+- ***Receita × Despesa:*** correlação extremamente forte (r = 0,9952).
+- ***População × Receita:*** correlação muito forte (r = 0,8701).
+- ***IDHM × PIB per capita:*** correlação forte (r = 0,7023).
+- ***IDHM × Escolarização:*** correlação praticamente nula (r =
+  -0,0138).
+- ***IDHM × Mortalidade Infantil:*** correlação negativa fraca (r =
+  -0,2375).
+
+Esses resultados indicam que fatores econômicos e populacionais tendem a
+apresentar relações mais intensas entre si do que os indicadores sociais
+analisados.
+
+# Conclusão
+
+O presente trabalho realizou uma análise exploratória de dados dos
+municípios de Minas Gerais utilizando técnicas estatísticas descritivas,
+visualizações gráficas, análise espacial e correlação entre variáveis.
+
+Os resultados demonstraram que Minas Gerais apresenta grande diversidade
+demográfica, econômica e social entre seus municípios. Enquanto alguns
+indicadores, como a escolarização, mostraram elevada uniformidade em
+praticamente todo o território, variáveis relacionadas à população,
+arrecadação pública e atividade econômica apresentaram forte
+concentração em poucos municípios.
+
+A análise de correlação permitiu compreender melhor as relações
+existentes entre os indicadores. Observou-se que municípios mais
+populosos tendem a possuir maiores volumes de receitas e despesas,
+enquanto o desenvolvimento humano apresenta associação moderada com a
+riqueza produzida por habitante. Por outro lado, algumas variáveis
+sociais apresentaram relações pouco expressivas, evidenciando a
+influência de múltiplos fatores no desenvolvimento municipal.
+
+A utilização de mapas temáticos complementou as análises estatísticas ao
+permitir a visualização da distribuição espacial dos indicadores,
+facilitando a identificação de padrões regionais e desigualdades
+territoriais.
+
+De forma geral, o trabalho demonstrou como ferramentas de Ciência de
+Dados podem ser utilizadas para transformar bases públicas em
+informações relevantes para compreensão da realidade socioeconômica dos
+municípios mineiros, contribuindo para análises comparativas e para o
+suporte à tomada de decisão baseada em dados.
+
+# Referências
+
+## Base de dados
+
+As informações utilizadas neste trabalho foram obtidas a partir das
+seguintes fontes:
+
+| Instituição | Descrição | Link |
+|----|----|----|
+| Instituto Brasileiro de Geografia e Estatística (IBGE) | Base de dados utilizada para obtenção dos indicadores demográficos, sociais e econômicos dos municípios de Minas Gerais. | <https://www.ibge.gov.br/cidades-e-estados> |
+| geobr (IPEA) | Base cartográfica oficial utilizada para construção dos mapas municipais de Minas Gerais. | <https://ipeagit.github.io/geobr> |
+
+## Linguagem e ambiente
+
+O desenvolvimento e a elaboração do relatório foram realizados com as
+seguintes ferramentas:
+
+| Ferramenta | Finalidade | Link |
+|----|----|----|
+| R | Linguagem utilizada para tratamento, análise e visualização dos dados. | <https://www.r-project.org> |
+| RStudio | Ambiente de desenvolvimento utilizado para execução dos scripts. | <https://posit.co/products/open-source/rstudio> |
+| Quarto | Geração e publicação do relatório final em formato HTML. | <https://quarto.org> |
+
+## Bibliotecas e Pacotes
+
+As análises e visualizações apresentadas neste trabalho foram
+construídas utilizando as seguintes bibliotecas da linguagem R:
+
+| Biblioteca | Finalidade | Documentação |
+|----|----|----|
+| readxl | Leitura da planilha Excel (.xlsm) utilizada como fonte dos dados. | <https://readxl.tidyverse.org> |
+| dplyr | Manipulação, filtragem, agrupamento e transformação dos dados. | <https://dplyr.tidyverse.org> |
+| ggplot2 | Construção dos gráficos estatísticos do relatório. | <https://ggplot2.tidyverse.org> |
+| corrplot | Construção da matriz de correlação. | <https://taiyun.github.io/corrplot> |
+| ggcorrplot | Construção do heatmap de correlação. | <https://rpkgs.datanovia.com/ggcorrplot> |
+| forcats | Ordenação e manipulação de fatores em gráficos e tabelas. | <https://forcats.tidyverse.org> |
+| plotly | Criação dos gráficos e mapas interativos. | <https://plotly.com/r> |
+| DT | Construção de tabelas interativas. | <https://rstudio.github.io/DT> |
+| scales | Formatação de escalas, moedas, percentuais e eixos dos gráficos. | <https://scales.r-lib.org> |
+| geobr | Download e manipulação dos mapas oficiais dos municípios brasileiros. | <https://ipeagit.github.io/geobr> |
+| sf | Manipulação de dados geoespaciais e objetos cartográficos. | <https://r-spatial.github.io/sf> |
+| stringi | Padronização e tratamento de caracteres e nomes de municípios. | <https://stringi.gagolewski.com> |
