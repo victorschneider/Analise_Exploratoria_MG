@@ -12,7 +12,7 @@ A análise foi desenvolvida em **R** e apresentada por meio de um relatório pro
 
 O relatório contém toda a metodologia, análises, visualizações, interpretações e conclusões do projeto.
 
-> 🔗 **[Acessar relatório completo](./relatorio.html)**
+> 🔗 **[Acessar relatório completo](https://mganaliseexploratoria.vercel.app)**
 
 ---
 
